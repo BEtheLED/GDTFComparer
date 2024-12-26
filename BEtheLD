@@ -1,0 +1,175 @@
+import os
+import zipfile
+import xml.etree.ElementTree as ET
+from typing import Dict, Any
+import shutil
+import tempfile
+import tkinter as tk
+from tkinter import filedialog, ttk, messagebox
+
+
+class GDTFComparerApp:
+    def __init__(self, master):
+        self.master = master
+        master.title("GDTF Comparer")
+        master.resizable(True, True)
+
+        self.target_file = ""
+        self.compare_files = []
+
+        # Default attributes and categories
+        self.attribute_categories = {
+            'Beam': ['BeamAngle', 'FieldAngle', 'PowerConsumption', 'LuminousFlux', 'ColorTemperature', 'BeamType'],
+            'Physical Properties': ['Weight', 'Width', 'Height', 'Length'],
+        }
+        self.selected_attributes = []
+
+        # Create UI components
+        self.create_widgets()
+
+    def create_widgets(self):
+        """Initialize the GUI widgets."""
+        self.master.columnconfigure(1, weight=1)
+        self.master.rowconfigure(4, weight=1)
+
+        # Target GDTF file
+        self.target_label = tk.Label(self.master, text="Target GDTF File:")
+        self.target_label.grid(row=0, column=0, padx=5, pady=5, sticky='e')
+
+        self.target_entry = tk.Entry(self.master, width=50)
+        self.target_entry.grid(row=0, column=1, padx=5, pady=5, sticky='we')
+
+        self.target_button = tk.Button(self.master, text="Browse...", command=self.select_target_file)
+        self.target_button.grid(row=0, column=2, padx=5, pady=5)
+
+        # Comparison GDTF files
+        self.compare_label = tk.Label(self.master, text="Files to Compare:")
+        self.compare_label.grid(row=1, column=0, padx=5, pady=5, sticky='ne')
+
+        self.compare_listbox = tk.Listbox(self.master, selectmode=tk.MULTIPLE, height=5)
+        self.compare_listbox.grid(row=1, column=1, padx=5, pady=5, sticky='nsew')
+        self.master.rowconfigure(1, weight=1)
+
+        self.compare_button = tk.Button(self.master, text="Add Files...", command=self.select_compare_files)
+        self.compare_button.grid(row=1, column=2, padx=5, pady=5)
+
+        self.remove_button = tk.Button(self.master, text="Remove Selected", command=self.remove_selected_files)
+        self.remove_button.grid(row=2, column=2, padx=5, pady=5)
+
+        # Compare button
+        self.run_button = tk.Button(self.master, text="Run Comparison", command=self.run_comparison)
+        self.run_button.grid(row=3, column=2, padx=5, pady=10)
+
+        # Output Table
+        self.tree_frame = tk.Frame(self.master)
+        self.tree_frame.grid(row=4, column=0, columnspan=3, padx=5, pady=5, sticky='nsew')
+
+        self.tree_scrollbar = tk.Scrollbar(self.tree_frame)
+        self.tree_scrollbar.pack(side='right', fill='y')
+
+        self.tree = ttk.Treeview(self.tree_frame, yscrollcommand=self.tree_scrollbar.set)
+        self.tree.pack(expand=True, fill='both')
+        self.tree_scrollbar.config(command=self.tree.yview)
+
+    def select_target_file(self):
+        """Select the target GDTF file."""
+        file_path = filedialog.askopenfilename(filetypes=[("GDTF Files", "*.gdtf")])
+        if file_path:
+            self.target_file = file_path
+            self.target_entry.delete(0, tk.END)
+            self.target_entry.insert(0, file_path)
+
+    def select_compare_files(self):
+        """Select files to compare against the target."""
+        files = filedialog.askopenfilenames(filetypes=[("GDTF Files", "*.gdtf")])
+        for file in files:
+            if file not in self.compare_files:
+                self.compare_files.append(file)
+                self.compare_listbox.insert(tk.END, file)
+
+    def remove_selected_files(self):
+        """Remove selected files from the list."""
+        selected_indices = self.compare_listbox.curselection()
+        for index in reversed(selected_indices):
+            self.compare_files.pop(index)
+            self.compare_listbox.delete(index)
+
+    def run_comparison(self):
+        """Run the comparison."""
+        if not self.target_file:
+            messagebox.showerror("Error", "Please select a target GDTF file.")
+            return
+        if not self.compare_files:
+            messagebox.showerror("Error", "Please select at least one GDTF file to compare.")
+            return
+
+        # Clear the treeview
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        # Parse the target and comparison files
+        target_data = parse_gdtf(self.target_file)
+        compare_data = [parse_gdtf(file) for file in self.compare_files]
+
+        # Define columns
+        columns = ["Attribute", "Target"] + [os.path.basename(file) for file in self.compare_files]
+        self.tree["columns"] = columns
+        self.tree["show"] = "headings"
+
+        # Add columns to the treeview
+        for col in columns:
+            self.tree.heading(col, text=col)
+            self.tree.column(col, width=150)
+
+        # Populate treeview with comparison data
+        for category, attributes in self.attribute_categories.items():
+            for attr in attributes:
+                row = [attr, target_data.get(attr, "N/A")] + [data.get(attr, "N/A") for data in compare_data]
+                self.tree.insert("", tk.END, values=row)
+
+
+def parse_gdtf(file_path: str) -> Dict[str, Any]:
+    """Parse a GDTF file."""
+    temp_dir = tempfile.mkdtemp()
+    try:
+        # Extract the GDTF file
+        temp_zip_path = os.path.join(temp_dir, "temp_gdtf.zip")
+        shutil.copyfile(file_path, temp_zip_path)
+        with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
+            zip_ref.extractall(temp_dir)
+
+        # Locate and parse description.xml
+        description_path = None
+        for root, dirs, files in os.walk(temp_dir):
+            for file in files:
+                if file.lower() == "description.xml":
+                    description_path = os.path.join(root, file)
+                    break
+            if description_path:
+                break
+
+        if not description_path:
+            return {}
+
+        tree = ET.parse(description_path)
+        root = tree.getroot()
+
+        # Extract relevant attributes
+        parsed_data = {}
+        for element in root.iter():
+            for key, value in element.attrib.items():
+                parsed_data[key] = value
+
+        return parsed_data
+    finally:
+        shutil.rmtree(temp_dir)
+
+
+def main():
+    root = tk.Tk()
+    app = GDTFComparerApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
