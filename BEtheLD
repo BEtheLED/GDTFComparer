@@ -5,7 +5,7 @@ from typing import Dict, Any
 import shutil
 import tempfile
 import tkinter as tk
-from tkinter import filedialog, ttk, messagebox
+from tkinter import filedialog, ttk
 
 
 class GDTFComparerApp:
@@ -147,9 +147,9 @@ def parse_gdtf(file_path: str) -> Dict[str, Any]:
         try:
             with zipfile.ZipFile(temp_zip_path, "r") as zip_ref:
                 zip_ref.extractall(temp_dir)
-        except zipfile.BadZipFile:
-            messagebox.showerror("Error", "The selected file is not a valid GDTF archive.")
-            return {}
+        except zipfile.BadZipFile as exc:
+            # Propagate the error so callers can handle it (e.g. tests)
+            raise exc
 
         # Locate and parse description.xml
         description_path = None
@@ -166,9 +166,9 @@ def parse_gdtf(file_path: str) -> Dict[str, Any]:
 
         try:
             tree = ET.parse(description_path)
-        except ET.ParseError:
-            messagebox.showerror("Error", "description.xml could not be parsed.")
-            return {}
+        except ET.ParseError as exc:
+            # Propagate parse errors to the caller
+            raise exc
         root = tree.getroot()
 
         # Extract relevant attributes
