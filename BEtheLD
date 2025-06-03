@@ -129,7 +129,16 @@ class GDTFComparerApp:
 
 
 def parse_gdtf(file_path: str) -> Dict[str, Any]:
-    """Parse a GDTF file."""
+    """Parse a GDTF file.
+
+    Parameters:
+        file_path: Path to the ``.gdtf`` file to parse.
+
+    Returns:
+        Dictionary of attributes extracted from ``description.xml`` inside the
+        archive. If ``description.xml`` is not found, an empty dictionary is
+        returned.
+    """
     temp_dir = tempfile.mkdtemp()
     try:
         # Extract the GDTF file
