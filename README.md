@@ -1,2 +1,2 @@
 # GDTFComparer
-A Simple script to compare GDTF files 
+A Simple script to compare GDTF files
