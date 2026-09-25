@@ -31,8 +31,8 @@ You can pick a target GDTF file and any number of comparison files and immediate
 - [ ] User can choose/search which GDTF attributes to compare, instead of being limited to the two hardcoded categories (Beam, Physical Properties)
 - [ ] Differing attribute values are visually highlighted in the comparison table
 - [ ] User can export comparison results (e.g. CSV) for sharing or records
-- [ ] App parses GDTF files using MVRxchange's parsing logic/libraries instead of the current hand-rolled flat-attribute extraction
-- [ ] App can participate in the MVRxchange network protocol to exchange/sync fixture and scene data with other lighting/visualization software
+- [ ] App parses GDTF files using the `pygdtf`/`pymvr` libraries (spec-correct, MIT-licensed) instead of the current hand-rolled flat-attribute extraction
+- [ ] App can participate in the MVR-xchange network protocol (reimplemented from the public spec, not ported from GPLv3 reference code) to exchange/sync fixture and scene data with other lighting/visualization software, as a later, additive phase after the core rebuild ships
 - [ ] Known crash bugs are fixed (missing `messagebox` import crashes error handling; no error handling around bad/corrupt GDTF files)
 
 ### Out of Scope
@@ -43,10 +43,11 @@ You can pick a target GDTF file and any number of comparison files and immediate
 ## Context
 
 - Existing codebase: a single-file Tkinter script (`BEtheLD`) plus a `parse_gdtf()` function, and an unrelated/parked Blender addon skeleton (`blender_addon/`). See `.planning/codebase/` for the full map (ARCHITECTURE.md, STACK.md, CONCERNS.md, etc.).
-- Current parsing is naive: it walks the extracted XML tree and collects every element's attributes into one flat dict with no namespacing, so same-named attributes on different elements can collide. MVRxchange integration should replace this with more robust, spec-correct parsing.
+- Current parsing is naive: it walks the extracted XML tree and collects every element's attributes into one flat dict with no namespacing, so same-named attributes on different elements can collide.
 - Current UI is GUI logic tightly coupled to parsing logic (`GDTFComparerApp.run_comparison()` calls `parse_gdtf()` directly and manipulates the Treeview inline) — the rebuild is an opportunity to separate parsing/comparison logic from presentation so a new UI can be layered on top.
-- No dependency manifest exists today (no requirements.txt/pyproject.toml) — needed to add real dependencies (UI framework, MVRxchange libs, packaging tooling).
+- No dependency manifest exists today (no requirements.txt/pyproject.toml) — needed to add real dependencies (UI framework, parsing libs, packaging tooling).
 - Known bug: `run_comparison()` references `messagebox.showerror` but `messagebox` is never imported from `tkinter` — any validation error crashes the app instead of showing a message.
+- **Research correction:** `github.com/mvrdevelopment/tools` (the repo originally referenced for "MVRxchange integration") contains no parsing library or network client — only schemas, GDTF-Share API docs, and a Wireshark dissector. The real GDTF/MVR parsing libraries are `pygdtf`/`pymvr` (open-stage org, MIT-licensed). The only known working MVR-xchange network protocol implementation is inside BlenderDMX (GPLv3) — this project will reimplement the wire protocol from the public spec rather than adopt GPLv3. See `.planning/research/SUMMARY.md` for full findings.
 
 ## Constraints
 
@@ -58,9 +59,11 @@ You can pick a target GDTF file and any number of comparison files and immediate
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Rebuild UI and add MVRxchange parsing + network exchange in this milestone, rather than a smaller polish-only pass | User wants to "beef up" the tool significantly, not just reskin it | — Pending |
+| Rebuild UI and add spec-correct parsing + MVR-xchange network exchange in this milestone, rather than a smaller polish-only pass | User wants to "beef up" the tool significantly, not just reskin it | — Pending |
 | Blender addon work stays parked | User wants focus on the standalone comparer app for this round | — Pending |
 | Package as standalone macOS + Windows builds (no Python required) | Tool needs to be shareable with other lighting/AV pros who won't have Python set up | — Pending |
+| Reimplement MVR-xchange wire protocol from the public spec, not from BlenderDMX's GPLv3 reference code | Keeps the project's license open; avoids the whole app inheriting GPLv3 | — Pending |
+| Sequence MVR-xchange networking as its own later phase, after the core rebuild (parsing, UI, diff highlighting, export, packaging) ships | It's the highest-risk/complexity component; core app should be solid and offline-usable first | — Pending |
 
 ## Evolution
 
