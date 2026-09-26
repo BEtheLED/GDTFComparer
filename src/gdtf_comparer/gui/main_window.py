@@ -1,0 +1,239 @@
+"""Main window: file pickers, Run Comparison, results table (UI-02).
+
+Only ever calls into gdtf_comparer.core.comparator / core.models -- never
+pygdtf or zipfile directly (D-16). Comparison work runs on a QThread-backed
+ComparisonWorker so the GUI thread never blocks (D-14).
+"""
+
+import os
+from typing import List, Optional, Sequence
+
+from PySide6.QtCore import QThread, Qt
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QFileDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QTableView,
+    QVBoxLayout,
+    QWidget,
+)
+
+from gdtf_comparer.core.models import ComparisonResult
+from gdtf_comparer.gui.table_model import ComparisonTableModel
+from gdtf_comparer.gui.worker import ComparisonWorker
+
+GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
+
+
+class MainWindow(QMainWindow):
+    """Pick a target + comparison GDTF files, run a comparison, view the table."""
+
+    def __init__(self, parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent)
+        self.target_file: str = ""
+        self.compare_files: List[str] = []
+        self._thread: Optional[QThread] = None
+        self._worker: Optional[ComparisonWorker] = None
+
+        self.setWindowTitle("GDTF Comparer")
+        self.resize(1000, 650)
+        self.create_widgets()
+
+    def create_widgets(self) -> None:
+        """Build the Files group box, Run button, and results table."""
+        central = QWidget(self)
+        self.setCentralWidget(central)
+        layout = QVBoxLayout(central)
+
+        files_group = QGroupBox("Files", central)
+        grid = QGridLayout(files_group)
+
+        target_label = QLabel("Target GDTF", files_group)
+        self.target_edit = QLineEdit(files_group)
+        self.target_edit.setReadOnly(True)
+        self.target_edit.setPlaceholderText("No target selected")
+        self.target_button = QPushButton("Browse…", files_group)
+        self.target_button.clicked.connect(self.select_target_file)
+
+        grid.addWidget(target_label, 0, 0)
+        grid.addWidget(self.target_edit, 0, 1)
+        grid.addWidget(self.target_button, 0, 2)
+
+        compare_label = QLabel("Compare with", files_group)
+        self.compare_list = QListWidget(files_group)
+        self.compare_list.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+
+        button_column = QVBoxLayout()
+        self.add_button = QPushButton("Add Files…", files_group)
+        self.add_button.clicked.connect(self.select_compare_files)
+        self.remove_button = QPushButton("Remove Selected", files_group)
+        self.remove_button.clicked.connect(self.remove_selected_files)
+        button_column.addWidget(self.add_button)
+        button_column.addWidget(self.remove_button)
+        button_column.addStretch(1)
+
+        grid.addWidget(compare_label, 1, 0, Qt.AlignmentFlag.AlignTop)
+        grid.addWidget(self.compare_list, 1, 1)
+        grid.addLayout(button_column, 1, 2)
+
+        layout.addWidget(files_group)
+
+        run_row = QHBoxLayout()
+        run_row.addStretch(1)
+        self.run_button = QPushButton("Run Comparison", central)
+        self.run_button.clicked.connect(self.run_comparison)
+        run_row.addWidget(self.run_button)
+        layout.addLayout(run_row)
+
+        self.table_model = ComparisonTableModel(central)
+        self.table_view = QTableView(central)
+        self.table_view.setModel(self.table_model)
+        self.table_view.setAlternatingRowColors(True)
+        self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table_view.verticalHeader().setVisible(False)
+        self.table_view.horizontalHeader().setStretchLastSection(True)
+        layout.addWidget(self.table_view)
+
+        self.statusBar().showMessage("Ready")
+
+    def select_target_file(self) -> None:
+        """Open a file dialog to pick the target GDTF file."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Target GDTF File", "", GDTF_FILE_FILTER
+        )
+        if path:
+            self.set_target_file(path)
+
+    def select_compare_files(self) -> None:
+        """Open a file dialog to add one or more comparison GDTF files."""
+        paths, _ = QFileDialog.getOpenFileNames(
+            self, "Select Comparison GDTF Files", "", GDTF_FILE_FILTER
+        )
+        if paths:
+            self.add_compare_files(paths)
+
+    def set_target_file(self, path: str) -> None:
+        """Set the target file path and reflect it in the target field.
+
+        Parameters:
+            path: Path to the target .gdtf file.
+        """
+        self.target_file = path
+        self.target_edit.setText(path)
+
+    def add_compare_files(self, paths: Sequence[str]) -> None:
+        """Add comparison files, skipping empty/already-listed paths.
+
+        Parameters:
+            paths: Candidate .gdtf file paths to add, in order.
+        """
+        for path in paths:
+            if not path or path in self.compare_files:
+                continue
+            self.compare_files.append(path)
+            item = QListWidgetItem(os.path.basename(path))
+            item.setToolTip(path)
+            item.setData(Qt.ItemDataRole.UserRole, path)
+            self.compare_list.addItem(item)
+
+    def remove_selected_files(self) -> None:
+        """Remove the selected rows from both compare_files and the list widget."""
+        for item in self.compare_list.selectedItems():
+            row = self.compare_list.row(item)
+            path = item.data(Qt.ItemDataRole.UserRole)
+            if path in self.compare_files:
+                self.compare_files.remove(path)
+            self.compare_list.takeItem(row)
+
+    def run_comparison(self) -> None:
+        """Validate inputs, then run a comparison on a QThread worker (D-14)."""
+        if self.is_comparison_running():
+            return
+        if not self.target_file:
+            self._show_error("Select a target GDTF file before running a comparison.")
+            return
+        if not self.compare_files:
+            self._show_error("Add at least one GDTF file to compare against the target.")
+            return
+
+        self.table_model.set_result(None)
+        self.run_button.setEnabled(False)
+        self.statusBar().showMessage(f"Comparing {len(self.compare_files)} file(s)…")
+
+        thread = QThread(self)
+        worker = ComparisonWorker(self.target_file, list(self.compare_files))
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.comparison_ready.connect(self.on_comparison_ready)
+        worker.comparison_failed.connect(self.on_comparison_failed)
+        worker.comparison_ready.connect(thread.quit)
+        worker.comparison_failed.connect(thread.quit)
+        thread.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(self._on_thread_finished)
+
+        self._thread = thread
+        self._worker = worker
+        thread.start()
+
+    def _on_thread_finished(self) -> None:
+        """Clear thread/worker references and re-enable Run Comparison.
+
+        This is the ONLY place run_button is re-enabled, so a second
+        comparison can never start while the previous worker thread is
+        still alive (D-14).
+        """
+        self._thread = None
+        self._worker = None
+        self.run_button.setEnabled(True)
+
+    def on_comparison_ready(self, result: ComparisonResult) -> None:
+        """Render a successful comparison result.
+
+        Parameters:
+            result: The ComparisonResult produced by the worker.
+        """
+        self.table_model.set_result(result)
+        self.table_view.resizeColumnsToContents()
+        self.statusBar().showMessage(
+            f"Compared {len(result.comparisons)} file(s) against {result.target.file_name}"
+        )
+
+    def on_comparison_failed(self, message: str) -> None:
+        """Clear the table and show a friendly error for a failed comparison.
+
+        Parameters:
+            message: The user-facing error message from the worker.
+        """
+        self.table_model.set_result(None)
+        self.statusBar().showMessage("Comparison failed")
+        self._show_error(message)
+
+    def is_comparison_running(self) -> bool:
+        """Return True while a worker thread exists and is still running."""
+        return self._thread is not None and self._thread.isRunning()
+
+    def closeEvent(self, event) -> None:
+        """Quit and wait for any running worker thread before closing (D-14)."""
+        if self._thread is not None:
+            self._thread.quit()
+            self._thread.wait()
+        super().closeEvent(event)
+
+    def _show_error(self, message: str) -> None:
+        """Show a friendly modal error dialog.
+
+        Parameters:
+            message: The message to display to the user.
+        """
+        QMessageBox.warning(self, "GDTF Comparer", message)
