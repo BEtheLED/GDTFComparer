@@ -392,17 +392,21 @@ for model in fixture.models:
 
 **If this table is empty:** N/A — see above; all other claims in this research were verified directly against pygdtf/defusedxml/Qt source or documentation fetched and read this session.
 
-## Open Questions
+## Open Questions (RESOLVED)
+
+Both questions were resolved during planning (2026-09-25); the resolutions are implemented by the plans named below and do not carry into execution as open items.
 
 1. **Exact attribute-path key format for namespacing (D-11's "Claude's discretion")**
    - What we know: pygdtf exposes a real tree (`Geometry.geometries` recursive list) and flat lists (`models`, `wheels`) that can be walked to build unique keys.
    - What's unclear: Whether the planner should key by full geometry path (`"Head/Beam1/BeamAngle"`) or by a shorter unique-enough identifier (`"Beam1/BeamAngle"`) — GDTF's `get_geometry_tree()` helper (mentioned in pygdtf's README, not independently verified this session) may offer a ready-made path-building utility worth investigating during planning.
    - Recommendation: Planner should budget a small investigation task to check whether `pygdtf.utils.get_geometry_tree()` (referenced in the README `[CITED]`, not read directly this session) already produces path strings, before hand-rolling a path-builder in `core/models.py`.
+   - **RESOLVED (Plan 01-03 Task 1, recorded in SKELETON.md "Attribute identity"):** Key by the FULL geometry path. Beam rows use `AttributeKey("Beam", "<geom>/<geom>/<beam>", "<GDTF attr>")` with geometry names from the top-level geometry down to the beam joined by `/` (e.g. `Body/Head1/Beam`); a repeated path gets a `#N` suffix (`_unique_path`) and an unnamed geometry gets `(unnamed)`. The investigation was done at planning time against the open-stage/python-gdtf source instead of as a separate task: `pygdtf.utils.get_geometry_tree()`/`iter_tree()` are NOT used, because they expand `GeometryReference` instances per DMX mode (one beam definition becomes N instanced rows and a mode must be chosen). Plan 01-03 instead walks the raw `fixture_type.geometries` tree iteratively (`iter_geometry_paths`, explicit stack, document order, `GeometryReference` targets not followed), so each defined beam appears exactly once with a stable, human-readable path. The path-builder lives in `core/extract.py`, not `core/models.py`. Task 1's `read_first` re-confirms the class and attribute names against the installed pygdtf before implementation.
 
 2. **How many `Model` entries does a typical real GDTF file have, and how should Phase 1's UI show more than one?**
    - What we know: The pygdtf object model supports N models per fixture (Pitfall 3).
    - What's unclear: Real-world distribution — is one model common, or do most professional fixtures ship 3-5+?
    - Recommendation: Use a small real `.gdtf` sample (from a manufacturer, or GDTF-Share) during Phase 1 implementation/testing to see real-world shape before finalizing the display scheme; not blocking for planning, since the dataclass shape already accounts for N models.
+   - **RESOLVED (Plan 01-03 Task 2; real-file check in Plan 01-05 Task 2 human-check):** The display scheme doesn't depend on how many models a file has. Every `Model` entry gets its own Width/Height/Length rows under Physical Properties, keyed by model name (`AttributeKey("Physical Properties", "<model name>", "Width|Height|Length")`), in document order. A duplicate name gets `#2`, `#3`, and so on, and an unnamed model gets `(unnamed model N)`. No model is dropped or merged. Weight stays a single fixture-level row (`element_path = ""`, shown as "Fixture"). Because the scheme works for any N, the real-world distribution is no longer a design input. The Plan 01-05 Task 2 end-of-phase human-check still runs the app against real GDTF-Share/manufacturer files to confirm multi-model fixtures render as expected.
 
 ## Environment Availability
 
@@ -491,7 +495,7 @@ for model in fixture.models:
 - `gsd-tools query package-legitimacy check --ecosystem pypi` — automated registry-signal check for all 5 new packages this session
 
 ### Secondary (MEDIUM confidence)
-- WebSearch: pygdtf README/usage patterns (`FixtureType(dsc_file=...)`, `dmx_modes[0].dmx_channels_count`, `get_geometry_tree()` helper) — corroborates but was not independently read line-by-line for the `get_geometry_tree()` helper specifically (flagged in Open Questions)
+- WebSearch: pygdtf README/usage patterns (`FixtureType(dsc_file=...)`, `dmx_modes[0].dmx_channels_count`, `get_geometry_tree()` helper) — corroborates but was not independently read line-by-line for the `get_geometry_tree()` helper specifically (flagged in Open Questions; resolved by Plan 01-03, which does not use the helper)
 - WebSearch: PySide6 `QThread`/`moveToThread()` worker pattern — corroborated across `doc.qt.io`, Real Python, pythontutorial.net; standard, extensively-documented Qt pattern
 - WebSearch: PySide6 `QAbstractTableModel` required methods (`rowCount`, `columnCount`, `data`, `headerData`) — corroborated across `doc.qt.io` and pythonguis.com
 - WebSearch: qt-material `apply_stylesheet()` usage and theme file naming convention — corroborated across the `dunderlab/qt-material` GitHub repo and readthedocs page
