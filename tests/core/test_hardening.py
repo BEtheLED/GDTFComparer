@@ -6,6 +6,9 @@ monkeypatch instead of writing real 100 MB / 1 GB files.
 """
 
 import os
+import sys
+import threading
+import time
 import zipfile
 
 import pytest
@@ -143,3 +146,54 @@ def test_valid_file_passes_prevalidation(make_gdtf):
 
     assert isinstance(data, bytes)
     assert len(data) > 0
+
+
+def test_fifo_rejected_without_blocking(tmp_path):
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("os.mkfifo is not available on this platform")
+
+    fifo_path = tmp_path / "pipe.gdtf"
+    os.mkfifo(fifo_path)
+
+    def _keep_fifo_openable() -> None:
+        # Every 0.1s for up to 5s, briefly open+close the FIFO's write end
+        # non-blocking. This only succeeds while a reader is stuck holding
+        # the read end open, which releases a blocking open() on the other
+        # side -- so a RED run (old code) fails on its assertions instead
+        # of hanging the whole test suite.
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                fd = os.open(str(fifo_path), os.O_WRONLY | os.O_NONBLOCK)
+            except OSError:
+                pass
+            else:
+                os.close(fd)
+            time.sleep(0.1)
+
+    helper = threading.Thread(target=_keep_fifo_openable, daemon=True)
+    helper.start()
+
+    try:
+        start = time.monotonic()
+        with pytest.raises(GDTFValidationError) as exc_info:
+            prevalidate_gdtf(str(fifo_path))
+        elapsed = time.monotonic() - start
+
+        assert "not a regular file" in str(exc_info.value)
+        assert elapsed < 2
+    finally:
+        helper.join(timeout=5)
+
+
+def test_directory_rejected(tmp_path):
+    if sys.platform == "win32":
+        pytest.skip("opening a directory on Windows raises a permission error")
+
+    dir_path = tmp_path / "folder.gdtf"
+    dir_path.mkdir()
+
+    with pytest.raises(GDTFValidationError) as exc_info:
+        prevalidate_gdtf(str(dir_path))
+
+    assert "not a regular file" in str(exc_info.value)
