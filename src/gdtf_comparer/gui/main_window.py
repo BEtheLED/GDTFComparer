@@ -34,6 +34,21 @@ from gdtf_comparer.gui.worker import ComparisonWorker
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
 
 
+def _normalized_path(path: str) -> str:
+    """Return a canonical key for path so alias forms compare equal.
+
+    Parameters:
+        path: A file path, possibly containing "./"/".." segments or a
+            symlink, or differing only in case.
+
+    Returns:
+        os.path.normcase(os.path.realpath(path)) -- realpath resolves
+        symlinks and "." / ".." segments, and normcase folds case on
+        Windows (a no-op elsewhere) (WR-02, T-01-27).
+    """
+    return os.path.normcase(os.path.realpath(path))
+
+
 class MainWindow(QMainWindow):
     """Pick a target + comparison GDTF files, run a comparison, view the table."""
 
@@ -122,7 +137,12 @@ class MainWindow(QMainWindow):
             self.add_compare_files(paths)
 
     def set_target_file(self, path: str) -> None:
-        """Set the target file path and reflect it in the target field.
+        """Set the target file path and evict it from the comparison list.
+
+        A file can never be both the target and a comparison file (WR-02):
+        if the newly chosen target is already present in compare_files
+        (including via a "./" segment or symlink alias, T-01-27), it is
+        removed from the comparison list and the status bar says so.
 
         Parameters:
             path: Path to the target .gdtf file.
@@ -130,20 +150,62 @@ class MainWindow(QMainWindow):
         self.target_file = path
         self.target_edit.setText(path)
 
+        if not path:
+            return
+
+        target_key = _normalized_path(path)
+        removed_basename: Optional[str] = None
+        for row in range(self.compare_list.count() - 1, -1, -1):
+            item = self.compare_list.item(row)
+            item_path = item.data(Qt.ItemDataRole.UserRole)
+            if _normalized_path(item_path) == target_key:
+                removed_basename = os.path.basename(item_path)
+                if item_path in self.compare_files:
+                    self.compare_files.remove(item_path)
+                self.compare_list.takeItem(row)
+
+        if removed_basename is not None:
+            self.statusBar().showMessage(
+                f"Removed '{removed_basename}' from the comparison list: "
+                "it is now the target file."
+            )
+
     def add_compare_files(self, paths: Sequence[str]) -> None:
-        """Add comparison files, skipping empty/already-listed paths.
+        """Add comparison files, refusing the target and duplicate paths.
+
+        A file can never be both the target and a comparison file (WR-02):
+        any candidate that resolves to the same file as the current target
+        (including via a "./" segment or symlink alias, T-01-27) is skipped
+        and reported in the status bar instead of being added.
 
         Parameters:
             paths: Candidate .gdtf file paths to add, in order.
         """
+        target_key = _normalized_path(self.target_file) if self.target_file else None
+        existing_keys = {_normalized_path(path) for path in self.compare_files}
+        target_was_offered = False
+
         for path in paths:
-            if not path or path in self.compare_files:
+            if not path:
+                continue
+            key = _normalized_path(path)
+            if target_key is not None and key == target_key:
+                target_was_offered = True
+                continue
+            if key in existing_keys:
                 continue
             self.compare_files.append(path)
+            existing_keys.add(key)
             item = QListWidgetItem(os.path.basename(path))
             item.setToolTip(path)
             item.setData(Qt.ItemDataRole.UserRole, path)
             self.compare_list.addItem(item)
+
+        if target_was_offered:
+            self.statusBar().showMessage(
+                f"Skipped '{os.path.basename(self.target_file)}': it is "
+                "already selected as the target file."
+            )
 
     def remove_selected_files(self) -> None:
         """Remove the selected rows from both compare_files and the list widget."""
