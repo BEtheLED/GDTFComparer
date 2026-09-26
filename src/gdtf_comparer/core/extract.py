@@ -10,8 +10,13 @@ core.models.AttributeKey. Two different cardinalities are covered here
   GeometryReference targets never followed) and every GeometryBeam
   contributes its own BEAM_ATTRIBUTES keys under CATEGORY_BEAM, keyed by the
   full ancestor-to-beam geometry path joined by "/" (e.g. "Body/Head1/Beam").
-  Plan 01-03 Task 2 adds per-Model Width/Height/Length keys under
-  CATEGORY_PHYSICAL the same way, keyed by model name.
+- Model dimensions are per-Model entry: every fixture_type.models entry
+  contributes its own MODEL_ATTRIBUTES (Width, Height, Length) keys under
+  CATEGORY_PHYSICAL, keyed by that model's name (or a positional
+  "(unnamed model N)" label when the model has no name). Every model gets
+  its own three rows -- none is dropped, merged, or aggregated (RESEARCH
+  Pitfall 3: Weight is one fixture-level scalar, Width/Height/Length are N
+  per-model values, and both cardinalities are represented explicitly).
 
 Duplicate or missing element names never overwrite each other: a repeated
 path gets a "#N" suffix (_unique_path) and an unnamed geometry gets the
@@ -37,6 +42,12 @@ BEAM_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
     ("LuminousFlux", "luminous_flux"),
     ("ColorTemperature", "color_temperature"),
     ("BeamType", "beam_type"),
+)
+
+MODEL_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
+    ("Width", "width"),
+    ("Height", "height"),
+    ("Length", "length"),
 )
 
 PATH_SEPARATOR = "/"
@@ -104,7 +115,9 @@ def extract_attributes(fixture_type: Any) -> Dict[AttributeKey, AttributeValue]:
     Returns:
         A dict keyed by AttributeKey covering: the single fixture-level
         Weight key; six BEAM_ATTRIBUTES keys per GeometryBeam node found by
-        iter_geometry_paths, namespaced by that beam's unique element path.
+        iter_geometry_paths, namespaced by that beam's unique element path;
+        three MODEL_ATTRIBUTES keys per fixture_type.models entry, namespaced
+        by that model's unique name (or a positional unnamed-model label).
     """
     attributes: Dict[AttributeKey, AttributeValue] = {}
 
@@ -130,5 +143,15 @@ def extract_attributes(fixture_type: Any) -> Dict[AttributeKey, AttributeValue]:
             else:
                 value = float(raw_value)
             attributes[AttributeKey(CATEGORY_BEAM, element_path, gdtf_name)] = value
+
+    model_paths: Set[str] = set()
+    models = getattr(fixture_type, "models", None) or []
+    for index, model in enumerate(models, start=1):
+        model_name = getattr(model, "name", None) or f"(unnamed model {index})"
+        element_path = _unique_path(model_name, model_paths)
+        for gdtf_name, field_name in MODEL_ATTRIBUTES:
+            raw_value = getattr(model, field_name, None)
+            value = float(raw_value) if raw_value is not None else None
+            attributes[AttributeKey(CATEGORY_PHYSICAL, element_path, gdtf_name)] = value
 
     return attributes

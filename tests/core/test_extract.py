@@ -104,3 +104,72 @@ def test_fixture_without_beams_has_no_beam_keys(make_gdtf):
 
     assert not any(key.category == CATEGORY_BEAM for key in attributes)
     assert attributes[AttributeKey(CATEGORY_PHYSICAL, FIXTURE_LEVEL_PATH, "Weight")] == 5.0
+
+
+def test_models_dimensions_namespaced_per_model(make_gdtf):
+    models_xml = (
+        '<Model Name="Base" Width="0.4" Height="0.1" Length="0.4"/>'
+        '<Model Name="Head" Width="0.2" Height="0.25" Length="0.3"/>'
+    )
+    path = make_gdtf("fixture.gdtf", models_xml=models_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Base", "Width")] == 0.4
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Base", "Height")] == 0.1
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Base", "Length")] == 0.4
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Head", "Width")] == 0.2
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Head", "Height")] == 0.25
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Head", "Length")] == 0.3
+
+    model_keys = [
+        key
+        for key in attributes
+        if key.category == CATEGORY_PHYSICAL and key.element_path in ("Base", "Head")
+    ]
+    assert [key.element_path for key in model_keys] == [
+        "Base",
+        "Base",
+        "Base",
+        "Head",
+        "Head",
+        "Head",
+    ]
+    assert [key.attribute for key in model_keys[:3]] == ["Width", "Height", "Length"]
+
+
+def test_weight_single_fixture_level_key(make_gdtf):
+    models_xml = (
+        '<Model Name="Base" Width="0.4" Height="0.1" Length="0.4"/>'
+        '<Model Name="Head" Width="0.2" Height="0.25" Length="0.3"/>'
+    )
+    path = make_gdtf("fixture.gdtf", weight=9.0, models_xml=models_xml)
+
+    attributes = _extract(path)
+
+    weight_keys = [key for key in attributes if key.attribute == "Weight"]
+    assert len(weight_keys) == 1
+    assert weight_keys[0].element_path == FIXTURE_LEVEL_PATH
+    assert attributes[weight_keys[0]] == 9.0
+
+
+def test_duplicate_model_names_get_suffix(make_gdtf):
+    models_xml = (
+        '<Model Name="Head" Width="0.1" Height="0.1" Length="0.1"/>'
+        '<Model Name="Head" Width="0.2" Height="0.2" Length="0.2"/>'
+    )
+    path = make_gdtf("fixture.gdtf", models_xml=models_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Head", "Width")] == 0.1
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Head#2", "Width")] == 0.2
+
+
+def test_unnamed_model_label(make_gdtf):
+    models_xml = '<Model Width="0.1" Height="0.1" Length="0.1"/>'
+    path = make_gdtf("fixture.gdtf", models_xml=models_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "(unnamed model 1)", "Width")] == 0.1
