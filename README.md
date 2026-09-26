@@ -66,6 +66,8 @@ Every selected `.gdtf` file is treated as untrusted input, including files
 you pick yourself. Files over 100 MB, XML containing a DTD or external
 entities, and zip archives with an implausible compression ratio (zip
 bombs) are rejected with a friendly error message instead of being parsed.
+Folders, named pipes and device files are refused with a friendly message
+before anything is read from them.
 
 ## Blender Addon
 

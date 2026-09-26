@@ -19,6 +19,7 @@ pygdtf's spec-default substitution (Plan 01-06).
 
 import io
 import os
+import stat
 import zipfile
 import zlib
 import xml.etree.ElementTree as ET
@@ -51,7 +52,17 @@ def _mb(num_bytes: int) -> int:
 
 
 def read_gdtf_bytes(path: str) -> bytes:
-    """Read a .gdtf file into memory, once, after checking its size.
+    """Read a .gdtf file into memory, once, after checking it is safe.
+
+    The path is opened exactly once, with O_NONBLOCK when the platform
+    supports it, so a folder, named pipe (FIFO) or device file returns
+    immediately instead of blocking forever waiting for a writer or for a
+    read that will never complete (WR-01, T-01-28). The regular-file check
+    (os.fstat + stat.S_ISREG) runs on that same opened descriptor, so a path
+    swapped for a pipe or device after it was picked is still refused before
+    any read happens (T-01-30) -- there is no separate stat-then-open. Once
+    confirmed regular, the descriptor is switched back to blocking mode and
+    the file is still read once, in full, into memory (T-01-15).
 
     Parameters:
         path: Path to the .gdtf archive to read.
@@ -60,32 +71,63 @@ def read_gdtf_bytes(path: str) -> bytes:
         The raw bytes of the archive.
 
     Raises:
-        GDTFValidationError: The file could not be read (missing, permission
-            denied, or another OS-level failure).
+        GDTFValidationError: The file could not be opened or read (missing,
+            permission denied, another OS-level failure), or it is not a
+            regular file (a folder, pipe or device).
         GDTFUnsafeFileError: The file is larger than MAX_GDTF_FILE_BYTES.
     """
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NONBLOCK", 0)
     try:
-        size = os.path.getsize(path)
+        fd = os.open(path, flags)
     except OSError as exc:
         raise GDTFValidationError(
             path, f"the file could not be read ({exc.strerror})."
         ) from exc
 
-    limit = MAX_GDTF_FILE_BYTES
-    if size > limit:
-        raise GDTFUnsafeFileError(
-            path,
-            "it was rejected for safety reasons "
-            f"(the file is {_mb(size)} MB; the limit is {_mb(limit)} MB).",
-        )
-
+    owns_fd = True
     try:
-        with open(path, "rb") as handle:
-            data = handle.read(limit + 1)
-    except OSError as exc:
-        raise GDTFValidationError(
-            path, f"the file could not be read ({exc.strerror})."
-        ) from exc
+        try:
+            st = os.fstat(fd)
+        except OSError as exc:
+            raise GDTFValidationError(
+                path, f"the file could not be read ({exc.strerror})."
+            ) from exc
+
+        if not stat.S_ISREG(st.st_mode):
+            raise GDTFValidationError(
+                path,
+                "it is not a regular file (it may be a folder, pipe or device).",
+            )
+
+        limit = MAX_GDTF_FILE_BYTES
+        if st.st_size > limit:
+            raise GDTFUnsafeFileError(
+                path,
+                "it was rejected for safety reasons "
+                f"(the file is {_mb(st.st_size)} MB; the limit is {_mb(limit)} MB).",
+            )
+
+        if getattr(os, "O_NONBLOCK", 0):
+            os.set_blocking(fd, True)
+
+        try:
+            handle = os.fdopen(fd, "rb")
+        except OSError as exc:
+            raise GDTFValidationError(
+                path, f"the file could not be read ({exc.strerror})."
+            ) from exc
+        owns_fd = False
+
+        try:
+            with handle:
+                data = handle.read(limit + 1)
+        except OSError as exc:
+            raise GDTFValidationError(
+                path, f"the file could not be read ({exc.strerror})."
+            ) from exc
+    finally:
+        if owns_fd:
+            os.close(fd)
 
     # A file that grew past the limit between the size check and the read
     # is also unsafe -- never trust the stat() result alone.
