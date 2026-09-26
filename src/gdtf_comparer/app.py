@@ -10,6 +10,7 @@ from typing import Optional, Sequence
 from PySide6.QtWidgets import QApplication
 
 from gdtf_comparer.gui.main_window import MainWindow
+from gdtf_comparer.gui.theme import install_os_theme
 
 
 def create_main_window(app: QApplication) -> MainWindow:
@@ -22,6 +23,7 @@ def create_main_window(app: QApplication) -> MainWindow:
         A new, unshown MainWindow instance.
     """
     app.setApplicationName("GDTF Comparer")
+    install_os_theme(app)
     return MainWindow()
 
 
