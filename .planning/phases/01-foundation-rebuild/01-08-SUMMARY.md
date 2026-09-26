@@ -155,3 +155,10 @@ Phase 01 complete, ready for verification.
 ---
 *Phase: 01-foundation-rebuild*
 *Completed: 2026-09-26*
+
+## Self-Check: PASSED
+
+- FOUND: tests/gui/test_shutdown.py
+- FOUND: src/gdtf_comparer/core/hardening.py
+- FOUND: .planning/phases/01-foundation-rebuild/01-08-SUMMARY.md
+- FOUND commits: 2e15d5e, 1b49c86, d6c020c, 314fdd3, cef7bb3
