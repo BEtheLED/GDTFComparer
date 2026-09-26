@@ -35,33 +35,33 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The app's interface has a modernized, visually refreshed look, not the stock Tkinter appearance.
   5. The GUI layer no longer calls parsing/comparison logic directly — that logic lives in a separate, independently testable service layer.
 
-**Plans**: 8 plans (5 original + 3 gap closure)
+**Plans**: 8/8 plans executed (5 original + 3 gap closure)
 
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Walking skeleton scaffold: blocking-human package legitimacy gate, pinned src-layout pyproject, shared venv, pytest-qt harness + GDTF test-file builder (wave 1)
+- [x] 01-01-PLAN.md — Walking skeleton scaffold: blocking-human package legitimacy gate, pinned src-layout pyproject, shared venv, pytest-qt harness + GDTF test-file builder (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 01-02-PLAN.md — Tracer: pick files -> QThread worker -> Qt-free core.compare_files -> pygdtf -> ComparisonResult -> QTableView, runnable via `python -m gdtf_comparer.app` (wave 2)
+- [x] 01-02-PLAN.md — Tracer: pick files -> QThread worker -> Qt-free core.compare_files -> pygdtf -> ComparisonResult -> QTableView, runnable via `python -m gdtf_comparer.app` (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 01-03-PLAN.md — PARSE-01: per-GeometryBeam and per-Model attributes namespaced by element path, no collisions (wave 3)
-- [ ] 01-04-PLAN.md — RELI-01/RELI-02: defusedxml + size-limit pre-validation, typed errors, friendly plain-text dialogs (wave 3)
-- [ ] 01-05-PLAN.md — UI-01/UI-02: qt-material theme following OS light/dark, AST import-boundary guard, delete BEtheLD, README (wave 3)
+- [x] 01-03-PLAN.md — PARSE-01: per-GeometryBeam and per-Model attributes namespaced by element path, no collisions (wave 3)
+- [x] 01-04-PLAN.md — RELI-01/RELI-02: defusedxml + size-limit pre-validation, typed errors, friendly plain-text dialogs (wave 3)
+- [x] 01-05-PLAN.md — UI-01/UI-02: qt-material theme following OS light/dark, AST import-boundary guard, delete BEtheLD, README (wave 3)
 
 **Gap closure** *(from 01-VERIFICATION.md Truth 6 and 01-REVIEW.md findings)*
 
 **Wave 4**
 
-- [ ] 01-06-PLAN.md — PARSE-01 correctness (CR-01/Truth 6): omitted GDTF attributes show N/A instead of pygdtf's spec defaults, detected by presence in the validated description.xml; closes 01-03's open prohibition (wave 4)
-- [ ] 01-07-PLAN.md — WR-02/IN-01/IN-02: a file can never be compared against itself; kept public surface tested; README states the Python 3.11+ floor (wave 4)
+- [x] 01-06-PLAN.md — PARSE-01 correctness (CR-01/Truth 6): omitted GDTF attributes show N/A instead of pygdtf's spec defaults, detected by presence in the validated description.xml; closes 01-03's open prohibition (wave 4)
+- [x] 01-07-PLAN.md — WR-02/IN-01/IN-02: a file can never be compared against itself; kept public surface tested; README states the Python 3.11+ floor (wave 4)
 
 **Wave 5** *(blocked on 01-06 and 01-07)*
 
-- [ ] 01-08-PLAN.md — WR-01: folders/pipes/devices rejected before any read; closing the window never hangs on a stuck worker (wave 5)
+- [x] 01-08-PLAN.md — WR-01: folders/pipes/devices rejected before any read; closing the window never hangs on a stuck worker (wave 5)
 
 **UI hint**: yes
 
@@ -129,7 +129,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Rebuild | 0/5 | Planned | - |
+| 1. Foundation Rebuild | 8/8 | In Progress|  |
 | 2. Attribute Browsing & Diff Highlighting | 0/TBD | Not started | - |
 | 3. Compare Profiles & Export | 0/TBD | Not started | - |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
