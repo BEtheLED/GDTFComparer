@@ -2,13 +2,19 @@
 
 pygdtf's own internal parser (`xml.etree.ElementTree`) has no XXE/entity or
 size hardening and silently substitutes a stub fixture for malformed XML
-(RESEARCH Pitfall 1). prevalidate_gdtf() runs entirely before pygdtf ever
-sees a byte: it reads the archive once into memory, checks size and
+(RESEARCH Pitfall 1). prevalidate_gdtf_document() runs entirely before pygdtf
+ever sees a byte: it reads the archive once into memory, checks size and
 compression-ratio limits, extracts only the exact "description.xml" member
 (no `extractall`, no temp directory -- T-01-14), and parses it with
 defusedxml's forbid_dtd/forbid_entities/forbid_external all True. Every
 limit below is a module constant read at call time (never captured as a
 default argument), so tests can monkeypatch them directly.
+
+The validated <GDTF> tree it returns (ValidatedGDTF.description_root) is not
+just discarded after validation -- core.extract also walks it, in lockstep
+with pygdtf's own parsed model, to decide whether each displayed attribute
+was actually declared in the manufacturer's file or only backfilled by
+pygdtf's spec-default substitution (Plan 01-06).
 """
 
 import io
@@ -16,6 +22,7 @@ import os
 import zipfile
 import zlib
 import xml.etree.ElementTree as ET
+from typing import NamedTuple
 
 import defusedxml.ElementTree as DET
 from defusedxml.common import DefusedXmlException
@@ -215,14 +222,30 @@ def parse_description_safely(xml_bytes: bytes, path: str) -> ET.Element:
     return root
 
 
-def prevalidate_gdtf(path: str) -> bytes:
+class ValidatedGDTF(NamedTuple):
+    """The result of validating a .gdtf file end to end before pygdtf parses it.
+
+    Parameters:
+        archive_bytes: The validated archive bytes, ready to hand to pygdtf.
+        description_root: The validated <GDTF> root element, parsed by
+            defusedxml with DTD/entities/external references all forbidden.
+    """
+
+    archive_bytes: bytes
+    description_root: ET.Element
+
+
+def prevalidate_gdtf_document(path: str) -> ValidatedGDTF:
     """Validate a .gdtf file end to end before pygdtf ever parses it.
 
     Parameters:
         path: Path to the .gdtf archive to validate.
 
     Returns:
-        The validated archive bytes, ready to hand to pygdtf.
+        A ValidatedGDTF carrying both the validated archive bytes and the
+        parsed <GDTF> root element, produced from a single read of the file
+        (T-01-15) -- pygdtf and any attribute-presence check both work from
+        the same bytes.
 
     Raises:
         GDTFValidationError: The file is not a valid GDTF archive.
@@ -230,5 +253,22 @@ def prevalidate_gdtf(path: str) -> bytes:
     """
     data = read_gdtf_bytes(path)
     xml_bytes = extract_description_bytes(data, path)
-    parse_description_safely(xml_bytes, path)
-    return data
+    root = parse_description_safely(xml_bytes, path)
+    return ValidatedGDTF(archive_bytes=data, description_root=root)
+
+
+def prevalidate_gdtf(path: str) -> bytes:
+    """Validate a .gdtf file end to end before pygdtf ever parses it.
+
+    Parameters:
+        path: Path to the .gdtf archive to validate.
+
+    Returns:
+        The validated archive bytes, ready to hand to pygdtf. Delegates to
+        prevalidate_gdtf_document() and discards its parsed tree.
+
+    Raises:
+        GDTFValidationError: The file is not a valid GDTF archive.
+        GDTFUnsafeFileError: The file was rejected by a safety limit.
+    """
+    return prevalidate_gdtf_document(path).archive_bytes

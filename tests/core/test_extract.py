@@ -3,6 +3,7 @@
 import pygdtf
 
 from gdtf_comparer.core.extract import extract_attributes
+from gdtf_comparer.core.hardening import prevalidate_gdtf_document
 from gdtf_comparer.core.models import (
     CATEGORY_BEAM,
     CATEGORY_PHYSICAL,
@@ -12,9 +13,34 @@ from gdtf_comparer.core.models import (
 
 
 def _extract(path):
-    """Open a .gdtf file with pygdtf and return its namespaced attribute dict."""
+    """Validate + open a .gdtf file and return its namespaced attribute dict."""
+    validated = prevalidate_gdtf_document(str(path))
     with pygdtf.FixtureType(str(path)) as fixture_type:
-        return extract_attributes(fixture_type)
+        return extract_attributes(fixture_type, validated.description_root)
+
+
+def test_omitted_weight_is_none_not_zero(make_gdtf):
+    path = make_gdtf("fixture.gdtf", weight=None)
+
+    with pygdtf.FixtureType(str(path)) as fixture_type:
+        # pygdtf itself backfills 0 for an omitted Weight -- proves the
+        # substitution this test guards against is real.
+        assert fixture_type.properties.weight == 0
+
+    attributes = _extract(path)
+
+    weight_key = AttributeKey(CATEGORY_PHYSICAL, FIXTURE_LEVEL_PATH, "Weight")
+    assert attributes[weight_key] is None
+
+
+def test_declared_zero_weight_is_kept(make_gdtf):
+    path = make_gdtf("fixture.gdtf", weight=0.0)
+
+    attributes = _extract(path)
+
+    weight_key = AttributeKey(CATEGORY_PHYSICAL, FIXTURE_LEVEL_PATH, "Weight")
+    assert attributes[weight_key] == 0.0
+    assert attributes[weight_key] is not None
 
 
 def test_two_beams_same_names_do_not_collide(make_gdtf):

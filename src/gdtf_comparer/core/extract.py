@@ -21,9 +21,28 @@ core.models.AttributeKey. Two different cardinalities are covered here
 Duplicate or missing element names never overwrite each other: a repeated
 path gets a "#N" suffix (_unique_path) and an unnamed geometry gets the
 UNNAMED_GEOMETRY placeholder.
+
+Presence, not value (Plan 01-06): pygdtf 1.4.5 backfills GDTF-spec defaults
+for every omitted Beam attribute (BeamAngle/FieldAngle 25, PowerConsumption
+1000, LuminousFlux 10000, ColorTemperature 6000, BeamType Wash), Weight (0)
+and Model dimension (Width/Height/Length 0) into its object model, and never
+exposes that the value was defaulted rather than declared. extract_attributes
+is therefore handed the validated <GDTF> tree (core.hardening.ValidatedGDTF.
+description_root, from the same read pygdtf parsed) alongside the pygdtf
+FixtureType, and checks -- for every displayed attribute -- whether the
+manufacturer's file actually declared it, by looking for that exact XML
+attribute name on the paired element. An undeclared attribute is always None
+("N/A" via format_value), even when pygdtf's backfilled value happens to
+equal what a real declaration would show; a declared value is always shown
+as declared, even when it equals the spec default. The validated tree and
+pygdtf's parsed model must be walked in lockstep (the same child-tag filter
+pygdtf itself applies, pygdtf.geometries.TAG_TO_GEOMETRY_CLASS) so presence
+is read from the correct paired element; any divergence raises
+DescriptionMismatchError rather than guessing (fail closed, T-01-23).
 """
 
-from typing import Any, Dict, Iterator, List, Set, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
+from xml.etree.ElementTree import Element
 
 from gdtf_comparer.core.models import (
     CATEGORY_BEAM,
@@ -34,6 +53,21 @@ from gdtf_comparer.core.models import (
 )
 
 from pygdtf.geometries import GeometryBeam
+
+
+class DescriptionMismatchError(ValueError):
+    """Raised when the validated description.xml tree cannot be paired with
+    pygdtf's parsed model.
+
+    Extraction never parses bytes itself -- it only reads the tree it is
+    given. This is raised when that tree cannot be walked in lockstep with
+    pygdtf's own object model (a missing FixtureType element, or a geometry/
+    model count or type mismatch during the lockstep walk), so that a
+    possibly-misattributed presence result is never silently shown. Its
+    message is fixed text that never includes file content (T-01-25); the
+    repository reports only this exception's type name in the user-facing
+    error (T-01-17).
+    """
 
 BEAM_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
     ("BeamAngle", "beam_angle"),
@@ -106,11 +140,47 @@ def _unique_path(path: str, used: Set[str]) -> str:
     return candidate
 
 
-def extract_attributes(fixture_type: Any) -> Dict[AttributeKey, AttributeValue]:
+def _weight_declared(fixture_type_element: Element) -> bool:
+    """Return True only when the file declares <Weight Value=...>.
+
+    Mirrors pygdtf's own lookup chain exactly (Properties._read_xml): a
+    first-match find of PhysicalDescriptions, then Properties, then Weight,
+    with the Weight element additionally required to carry a "Value"
+    attribute (the attribute pygdtf itself reads).
+
+    Parameters:
+        fixture_type_element: The <FixtureType> element from the validated
+            description.xml tree.
+
+    Returns:
+        True only when PhysicalDescriptions, then Properties, then Weight
+        are each found by a first-match find, and the Weight element has a
+        "Value" attribute.
+    """
+    physical_descriptions = fixture_type_element.find("PhysicalDescriptions")
+    if physical_descriptions is None:
+        return False
+    properties_element = physical_descriptions.find("Properties")
+    if properties_element is None:
+        return False
+    weight_element = properties_element.find("Weight")
+    if weight_element is None:
+        return False
+    return "Value" in weight_element.attrib
+
+
+def extract_attributes(
+    fixture_type: Any, description_root: Element
+) -> Dict[AttributeKey, AttributeValue]:
     """Build the namespaced attribute map for a parsed pygdtf FixtureType.
 
     Parameters:
         fixture_type: A parsed pygdtf.FixtureType instance.
+        description_root: The validated <GDTF> root element (from
+            core.hardening.prevalidate_gdtf_document, parsed from the same
+            bytes pygdtf parsed), used only to decide whether each displayed
+            attribute was declared in the manufacturer's file. Extraction
+            never parses XML itself -- it only reads this tree.
 
     Returns:
         A dict keyed by AttributeKey covering: the single fixture-level
@@ -118,12 +188,27 @@ def extract_attributes(fixture_type: Any) -> Dict[AttributeKey, AttributeValue]:
         iter_geometry_paths, namespaced by that beam's unique element path;
         three MODEL_ATTRIBUTES keys per fixture_type.models entry, namespaced
         by that model's unique name (or a positional unnamed-model label).
+        A key's value is None when the attribute was not declared in this
+        file, even if pygdtf's object model carries a GDTF-spec-default
+        substitute for it; declared values (including ones equal to the
+        spec default) are always shown as declared, from pygdtf.
+
+    Raises:
+        DescriptionMismatchError: description_root has no FixtureType
+            element, or the validated tree cannot be paired element-for-
+            element with pygdtf's parsed model.
     """
+    fixture_type_element = description_root.find("FixtureType")
+    if fixture_type_element is None:
+        raise DescriptionMismatchError(
+            "the validated description.xml tree has no FixtureType element."
+        )
+
     attributes: Dict[AttributeKey, AttributeValue] = {}
 
     weight: AttributeValue = None
     properties = getattr(fixture_type, "properties", None)
-    if properties is not None:
+    if properties is not None and _weight_declared(fixture_type_element):
         raw_weight = getattr(properties, "weight", None)
         if raw_weight is not None:
             weight = float(raw_weight)

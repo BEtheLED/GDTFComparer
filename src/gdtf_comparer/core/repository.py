@@ -1,9 +1,11 @@
 """Loads a .gdtf file into a FixtureModel using pygdtf (PARSE-01, D-09).
 
-load() = prevalidate_gdtf() -> pygdtf on the already-validated bytes ->
-typed errors (RELI-01, RELI-02, D-12). The archive is read once into memory
-by prevalidate_gdtf(); pygdtf then parses io.BytesIO of those same bytes, so
-there is no second disk read and no check-then-parse (TOCTOU) gap -- T-01-15.
+load() = prevalidate_gdtf_document() -> pygdtf on the already-validated bytes
+-> typed errors (RELI-01, RELI-02, D-12). The archive is read once into
+memory by prevalidate_gdtf_document(); pygdtf then parses io.BytesIO of those
+same bytes, and the same call's validated description_root is handed to
+extract_attributes() for its attribute-presence check, so there is no second
+disk read and no check-then-parse (TOCTOU) gap -- T-01-15.
 """
 
 import io
@@ -13,7 +15,7 @@ import pygdtf
 
 from gdtf_comparer.core.errors import GDTFError, GDTFParseError, GDTFValidationError
 from gdtf_comparer.core.extract import extract_attributes
-from gdtf_comparer.core.hardening import prevalidate_gdtf
+from gdtf_comparer.core.hardening import prevalidate_gdtf_document
 from gdtf_comparer.core.models import FixtureModel
 
 # Defence in depth: pygdtf substitutes this stub fixture for malformed XML
@@ -41,17 +43,20 @@ class FixtureRepository:
             GDTFValidationError: The file is not a valid, safe GDTF archive.
             GDTFUnsafeFileError: The file was rejected by a RELI-02 safety
                 limit (subclass of GDTFValidationError).
-            GDTFParseError: pygdtf itself failed on the validated bytes.
+            GDTFParseError: pygdtf itself failed on the validated bytes, or
+                the validated tree could not be paired with pygdtf's parsed
+                model (DescriptionMismatchError, reported by exception type
+                name only -- never file content).
         """
-        data = prevalidate_gdtf(path)
+        validated = prevalidate_gdtf_document(path)
 
         try:
-            with pygdtf.FixtureType(io.BytesIO(data)) as fixture_type:
+            with pygdtf.FixtureType(io.BytesIO(validated.archive_bytes)) as fixture_type:
                 if fixture_type.name == PYGDTF_BROKEN_XML_STUB_NAME:
                     raise GDTFValidationError(
                         path, "it does not contain a GDTF fixture definition."
                     )
-                attributes = extract_attributes(fixture_type)
+                attributes = extract_attributes(fixture_type, validated.description_root)
                 return FixtureModel(
                     source_path=path,
                     name=fixture_type.name or os.path.basename(path),
