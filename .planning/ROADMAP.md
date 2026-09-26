@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The app's interface has a modernized, visually refreshed look, not the stock Tkinter appearance.
   5. The GUI layer no longer calls parsing/comparison logic directly — that logic lives in a separate, independently testable service layer.
 
-**Plans**: 5 plans
+**Plans**: 8 plans (5 original + 3 gap closure)
 
 Plans:
 **Wave 1**
@@ -51,6 +51,17 @@ Plans:
 - [ ] 01-03-PLAN.md — PARSE-01: per-GeometryBeam and per-Model attributes namespaced by element path, no collisions (wave 3)
 - [ ] 01-04-PLAN.md — RELI-01/RELI-02: defusedxml + size-limit pre-validation, typed errors, friendly plain-text dialogs (wave 3)
 - [ ] 01-05-PLAN.md — UI-01/UI-02: qt-material theme following OS light/dark, AST import-boundary guard, delete BEtheLD, README (wave 3)
+
+**Gap closure** *(from 01-VERIFICATION.md Truth 6 and 01-REVIEW.md findings)*
+
+**Wave 4**
+
+- [ ] 01-06-PLAN.md — PARSE-01 correctness (CR-01/Truth 6): omitted GDTF attributes show N/A instead of pygdtf's spec defaults, detected by presence in the validated description.xml; closes 01-03's open prohibition (wave 4)
+- [ ] 01-07-PLAN.md — WR-02/IN-01/IN-02: a file can never be compared against itself; kept public surface tested; README states the Python 3.11+ floor (wave 4)
+
+**Wave 5** *(blocked on 01-06 and 01-07)*
+
+- [ ] 01-08-PLAN.md — WR-01: folders/pipes/devices rejected before any read; closing the window never hangs on a stuck worker (wave 5)
 
 **UI hint**: yes
 
