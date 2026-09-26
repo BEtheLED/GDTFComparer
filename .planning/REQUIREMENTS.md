@@ -9,7 +9,7 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 ### Parsing
 
-- [ ] **PARSE-01**: App parses GDTF files using the `pygdtf` library instead of the current hand-rolled flat-attribute extraction, preserving element path/namespace so same-named attributes on different elements don't collide
+- [x] **PARSE-01**: App parses GDTF files using the `pygdtf` library instead of the current hand-rolled flat-attribute extraction, preserving element path/namespace so same-named attributes on different elements don't collide
 - [ ] **PARSE-02**: App parses MVR files using the `pymvr` library
 
 ### Attribute Selection
@@ -73,7 +73,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PARSE-01 | Phase 1 | Pending |
+| PARSE-01 | Phase 1 | Complete |
 | PARSE-02 | Phase 5 | Pending |
 | ATTR-01 | Phase 2 | Pending |
 | ATTR-02 | Phase 2 | Pending |
@@ -93,6 +93,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NET-03 | Phase 5 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 18 total
 - Mapped to phases: 18 (Phase 1: 5, Phase 2: 3, Phase 3: 3, Phase 4: 3, Phase 5: 4)
 - Unmapped: 0 ✓
