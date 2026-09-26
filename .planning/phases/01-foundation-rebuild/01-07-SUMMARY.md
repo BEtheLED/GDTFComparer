@@ -141,3 +141,7 @@ Ready for 01-08.
 ---
 *Phase: 01-foundation-rebuild*
 *Completed: 2026-09-26*
+
+## Self-Check: PASSED
+
+All created/modified files found on disk; all four task commits (`ed7ca46`, `eb17d92`, `38ff4bc`) plus the SUMMARY metadata commit (`936957c`) verified present in `git log`.
