@@ -4,6 +4,8 @@ Local run command: PYTHONPATH=src .venv/bin/python -m gdtf_comparer.app
 (from the repo root, using the shared venv described in Plan 01-01).
 """
 
+import logging
+import os
 import sys
 from typing import Optional, Sequence
 
@@ -11,6 +13,8 @@ from PySide6.QtWidgets import QApplication
 
 from gdtf_comparer.gui.main_window import MainWindow
 from gdtf_comparer.gui.theme import install_os_theme
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def create_main_window(app: QApplication) -> MainWindow:
@@ -34,14 +38,35 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         argv: Command-line arguments; defaults to sys.argv when None.
 
     Returns:
-        The Qt application's exit code.
+        The application's exit code. Normally the Qt event loop's own exit
+        code; see the note below for the one case where the process ends via
+        os._exit instead.
     """
     app = QApplication.instance()
     if app is None:
         app = QApplication(list(argv) if argv is not None else sys.argv)
     window = create_main_window(app)
     window.show()
-    return app.exec()
+    exit_code = app.exec()
+
+    if window.is_comparison_running():
+        # Qt aborts the process if a still-running QThread is destroyed
+        # during interpreter shutdown, and a thread blocked in a kernel read
+        # cannot be stopped from Python (WR-01, T-01-29). This path only runs
+        # once the event loop has already ended (closeEvent's bounded wait,
+        # CLOSE_WAIT_TIMEOUT_MS, gave up on a stuck worker) -- normal closes
+        # never reach here. Nothing is lost by skipping the rest of normal
+        # shutdown: core never writes to disk (T-01-15).
+        _LOGGER.warning(
+            "Comparison worker still running at shutdown; exiting the "
+            "process directly instead of risking a Qt abort."
+        )
+        logging.shutdown()
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os._exit(exit_code)
+
+    return exit_code
 
 
 if __name__ == "__main__":

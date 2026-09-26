@@ -5,6 +5,7 @@ pygdtf or zipfile directly (D-16). Comparison work runs on a QThread-backed
 ComparisonWorker so the GUI thread never blocks (D-14).
 """
 
+import logging
 import os
 from typing import List, Optional, Sequence
 
@@ -32,6 +33,15 @@ from gdtf_comparer.gui.table_model import ComparisonTableModel
 from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
+
+_LOGGER = logging.getLogger(__name__)
+
+# How long closeEvent waits for a running worker thread before giving up and
+# closing anyway (WR-01, T-01-29). Read at call time (not captured as a
+# default argument) so tests can shrink it. Well above the 0.3 s worker used
+# by test_close_during_comparison_does_not_crash, so a normal in-flight
+# comparison is still waited for and finishes cleanly.
+CLOSE_WAIT_TIMEOUT_MS = 3000
 
 
 def _normalized_path(path: str) -> str:
@@ -286,10 +296,22 @@ class MainWindow(QMainWindow):
         return self._thread is not None and self._thread.isRunning()
 
     def closeEvent(self, event) -> None:
-        """Quit and wait for any running worker thread before closing (D-14)."""
+        """Quit and wait (bounded) for any running worker thread, then close.
+
+        Never blocks the GUI thread for more than CLOSE_WAIT_TIMEOUT_MS (D-14,
+        WR-01, T-01-29): a worker stuck in an uninterruptible OS read (e.g. a
+        stalled network mount) cannot be interrupted from Python, so if the
+        wait times out the window closes anyway and gdtf_comparer.app.main
+        ends the process once the Qt event loop returns.
+        """
         if self._thread is not None:
             self._thread.quit()
-            self._thread.wait()
+            finished = self._thread.wait(CLOSE_WAIT_TIMEOUT_MS)
+            if not finished:
+                _LOGGER.warning(
+                    "Comparison worker still running after %d ms; closing anyway.",
+                    CLOSE_WAIT_TIMEOUT_MS,
+                )
         super().closeEvent(event)
 
     def _show_error(self, message: str) -> None:
