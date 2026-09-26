@@ -231,9 +231,19 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _show_error(self, message: str) -> None:
-        """Show a friendly modal error dialog.
+        """Show a friendly modal, plain-text error dialog.
 
         Parameters:
-            message: The message to display to the user.
+            message: The message to display to the user. Always rendered as
+                plain text (Qt.TextFormat.PlainText) so a file name is never
+                interpreted as rich text (T-01-17).
         """
-        QMessageBox.warning(self, "GDTF Comparer", message)
+        box = QMessageBox(
+            QMessageBox.Icon.Warning,
+            "GDTF Comparer",
+            message,
+            QMessageBox.StandardButton.Ok,
+            self,
+        )
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.exec()
