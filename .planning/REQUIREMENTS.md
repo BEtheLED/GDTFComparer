@@ -34,8 +34,8 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 ### Reliability
 
-- [ ] **RELI-01**: App shows a user-friendly error message (not a crash) when a selected file is not a valid GDTF/zip or contains malformed XML
-- [ ] **RELI-02**: App guards against oversized or malicious zip/XML input (zip bombs, XXE) using `defusedxml` and size limits
+- [x] **RELI-01**: App shows a user-friendly error message (not a crash) when a selected file is not a valid GDTF/zip or contains malformed XML
+- [x] **RELI-02**: App guards against oversized or malicious zip/XML input (zip bombs, XXE) using `defusedxml` and size limits
 
 ### Packaging
 
@@ -83,8 +83,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXPORT-02 | Phase 3 | Pending |
 | UI-01 | Phase 1 | Pending |
 | UI-02 | Phase 1 | Pending |
-| RELI-01 | Phase 1 | Pending |
-| RELI-02 | Phase 1 | Pending |
+| RELI-01 | Phase 1 | Complete |
+| RELI-02 | Phase 1 | Complete |
 | PKG-01 | Phase 4 | Pending |
 | PKG-02 | Phase 4 | Pending |
 | PKG-03 | Phase 4 | Pending |
