@@ -52,7 +52,7 @@ from gdtf_comparer.core.models import (
     AttributeValue,
 )
 
-from pygdtf.geometries import GeometryBeam
+from pygdtf.geometries import TAG_TO_GEOMETRY_CLASS, GeometryBeam
 
 
 class DescriptionMismatchError(ValueError):
@@ -88,31 +88,88 @@ PATH_SEPARATOR = "/"
 UNNAMED_GEOMETRY = "(unnamed)"
 
 
-def iter_geometry_paths(fixture_type: Any) -> Iterator[Tuple[str, Any]]:
-    """Walk fixture_type.geometries iteratively, in document order.
+def _geometry_children(element: Optional[Element]) -> List[Element]:
+    """Return element's children whose tag pygdtf treats as a geometry node.
+
+    Parameters:
+        element: The XML element whose children to filter, or None.
+
+    Returns:
+        The children of element, in document order, whose tag is a key of
+        pygdtf.geometries.TAG_TO_GEOMETRY_CLASS -- exactly the filter pygdtf
+        itself applies both when collecting the top-level Geometries and
+        inside Geometry._read_xml. An empty list when element is None.
+    """
+    if element is None:
+        return []
+    return [child for child in element if child.tag in TAG_TO_GEOMETRY_CLASS]
+
+
+def iter_geometry_paths(
+    fixture_type: Any, fixture_type_element: Element
+) -> Iterator[Tuple[str, Any, Element]]:
+    """Walk fixture_type.geometries and the validated tree in lockstep.
 
     Parameters:
         fixture_type: A parsed pygdtf.FixtureType instance.
+        fixture_type_element: The <FixtureType> element from the validated
+            description.xml tree.
 
     Yields:
-        (path, node) pairs, one per geometry node encountered in a
-        depth-first pre-order walk using an explicit stack (no recursion).
-        path is the "/"-joined chain of ancestor names down to and
-        including node's own name (UNNAMED_GEOMETRY for a missing name).
-        GeometryReference targets are never followed, so each defined beam
-        is yielded exactly once regardless of how many DMX modes exist.
+        (path, node, element) triples, one per geometry node encountered in
+        a depth-first pre-order walk using an explicit stack (no recursion).
+        path is the "/"-joined chain of ancestor names down to and including
+        node's own name (UNNAMED_GEOMETRY for a missing name). element is
+        node's paired XML element from the validated tree, so a caller can
+        check which attributes it actually declares. Descent stops at a
+        GeometryReference (it has no .geometries attribute and pygdtf never
+        parses its children), so each defined beam is yielded exactly once
+        regardless of how many DMX modes exist.
+
+    Raises:
+        DescriptionMismatchError: the validated tree and pygdtf's parsed
+            model cannot be paired element-for-element at some level (a
+            child-count mismatch, or a tag that does not match the paired
+            node's type).
     """
-    roots = getattr(fixture_type, "geometries", None) or []
+    root_nodes = list(getattr(fixture_type, "geometries", None) or [])
+    root_elements = _geometry_children(fixture_type_element.find("Geometries"))
+    if len(root_nodes) != len(root_elements):
+        raise DescriptionMismatchError(
+            "the validated description.xml tree's top-level geometries do "
+            "not match pygdtf's parsed geometries."
+        )
+
     # Push children reversed so popping from the end preserves document order.
-    stack: List[Tuple[Any, str]] = [(node, "") for node in reversed(list(roots))]
+    stack: List[Tuple[Any, Element, str]] = [
+        (node, element, "")
+        for node, element in reversed(list(zip(root_nodes, root_elements)))
+    ]
     while stack:
-        node, ancestor_path = stack.pop()
+        node, element, ancestor_path = stack.pop()
+        if TAG_TO_GEOMETRY_CLASS.get(element.tag) is not type(node):
+            raise DescriptionMismatchError(
+                "the validated description.xml tree's geometry tag does not "
+                "match pygdtf's parsed geometry type."
+            )
+
         name = getattr(node, "name", None) or UNNAMED_GEOMETRY
         path = name if not ancestor_path else f"{ancestor_path}{PATH_SEPARATOR}{name}"
-        yield path, node
-        children = getattr(node, "geometries", None) or []
-        for child in reversed(list(children)):
-            stack.append((child, path))
+        yield path, node, element
+
+        if not hasattr(node, "geometries"):
+            # GeometryReference has no .geometries attribute; pygdtf never
+            # descends into a reference's children, and neither do we.
+            continue
+        child_nodes = list(node.geometries or [])
+        child_elements = _geometry_children(element)
+        if len(child_nodes) != len(child_elements):
+            raise DescriptionMismatchError(
+                "the validated description.xml tree's geometry children do "
+                "not match pygdtf's parsed geometry children."
+            )
+        for child_pair in reversed(list(zip(child_nodes, child_elements))):
+            stack.append((*child_pair, path))
 
 
 def _unique_path(path: str, used: Set[str]) -> str:
@@ -215,28 +272,42 @@ def extract_attributes(
     attributes[AttributeKey(CATEGORY_PHYSICAL, FIXTURE_LEVEL_PATH, "Weight")] = weight
 
     beam_paths: Set[str] = set()
-    for path, node in iter_geometry_paths(fixture_type):
+    for path, node, element in iter_geometry_paths(fixture_type, fixture_type_element):
         if not isinstance(node, GeometryBeam):
             continue
         element_path = _unique_path(path, beam_paths)
         for gdtf_name, field_name in BEAM_ATTRIBUTES:
-            raw_value = getattr(node, field_name, None)
-            if gdtf_name == "BeamType":
-                value: AttributeValue = raw_value.value if raw_value is not None else None
-            elif raw_value is None:
-                value = None
+            if gdtf_name not in element.attrib:
+                value: AttributeValue = None
             else:
-                value = float(raw_value)
+                raw_value = getattr(node, field_name, None)
+                if gdtf_name == "BeamType":
+                    # pygdtf's beam_type is never None -- a None here comes
+                    # only from the presence check above (closes REVIEW IN-03).
+                    value = raw_value.value if raw_value is not None else None
+                else:
+                    value = float(raw_value) if raw_value is not None else None
             attributes[AttributeKey(CATEGORY_BEAM, element_path, gdtf_name)] = value
 
+    models_element = fixture_type_element.find("Models")
+    raw_models = models_element.findall("Model") if models_element is not None else []
+    models = list(getattr(fixture_type, "models", None) or [])
+    if len(models) != len(raw_models):
+        raise DescriptionMismatchError(
+            "the validated description.xml tree's Models do not match "
+            "pygdtf's parsed models."
+        )
+
     model_paths: Set[str] = set()
-    models = getattr(fixture_type, "models", None) or []
-    for index, model in enumerate(models, start=1):
+    for index, (model, model_element) in enumerate(zip(models, raw_models), start=1):
         model_name = getattr(model, "name", None) or f"(unnamed model {index})"
         element_path = _unique_path(model_name, model_paths)
         for gdtf_name, field_name in MODEL_ATTRIBUTES:
-            raw_value = getattr(model, field_name, None)
-            value = float(raw_value) if raw_value is not None else None
+            if gdtf_name not in model_element.attrib:
+                value = None
+            else:
+                raw_value = getattr(model, field_name, None)
+                value = float(raw_value) if raw_value is not None else None
             attributes[AttributeKey(CATEGORY_PHYSICAL, element_path, gdtf_name)] = value
 
     return attributes
