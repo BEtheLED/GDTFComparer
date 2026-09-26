@@ -149,6 +149,17 @@ None.
 - The unresolved prohibition (pygdtf silently substitutes GDTF-spec defaults for omitted beam attributes, e.g. `PowerConsumption` 1000) remains flagged for a future user decision — not implemented here because pygdtf exposes no explicit/defaulted provenance distinction
 - Plan 01-05's end-of-phase human-check should validate multi-model/multi-beam rendering against real GDTF-Share/manufacturer files, as originally planned
 
+## Self-Check: PASSED
+
+- FOUND: src/gdtf_comparer/core/extract.py
+- FOUND: tests/core/test_extract.py
+- FOUND: tests/core/test_comparator.py
+- FOUND: tests/gui/test_namespaced_rows.py
+- FOUND: .planning/phases/01-foundation-rebuild/01-03-SUMMARY.md
+- FOUND commit: 3d4d9f5 (feat(01-03): namespaced per-beam attribute extraction)
+- FOUND commit: 74aa0f1 (feat(01-03): namespaced per-model dimension extraction)
+- FOUND commit: 3a0b17b (docs(01-03): complete namespaced beam & model extraction plan)
+
 ---
 *Phase: 01-foundation-rebuild*
 *Completed: 2026-09-26*
