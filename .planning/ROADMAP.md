@@ -31,7 +31,14 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Selecting a corrupt or invalid GDTF/zip file shows a friendly error message instead of crashing the app.
   4. The app's interface has a modernized, visually refreshed look, not the stock Tkinter appearance.
   5. The GUI layer no longer calls parsing/comparison logic directly — that logic lives in a separate, independently testable service layer.
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Walking skeleton scaffold: blocking-human package legitimacy gate, pinned src-layout pyproject, shared venv, pytest-qt harness + GDTF test-file builder (wave 1)
+- [ ] 01-02-PLAN.md — Tracer: pick files -> QThread worker -> Qt-free core.compare_files -> pygdtf -> ComparisonResult -> QTableView, runnable via `python -m gdtf_comparer.app` (wave 2)
+- [ ] 01-03-PLAN.md — PARSE-01: per-GeometryBeam and per-Model attributes namespaced by element path, no collisions (wave 3)
+- [ ] 01-04-PLAN.md — RELI-01/RELI-02: defusedxml + size-limit pre-validation, typed errors, friendly plain-text dialogs (wave 3)
+- [ ] 01-05-PLAN.md — UI-01/UI-02: qt-material theme following OS light/dark, AST import-boundary guard, delete BEtheLD, README (wave 3)
 **UI hint**: yes
 
 ### Phase 2: Attribute Browsing & Diff Highlighting
@@ -86,7 +93,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Rebuild | 0/TBD | Not started | - |
+| 1. Foundation Rebuild | 0/5 | Planned | - |
 | 2. Attribute Browsing & Diff Highlighting | 0/TBD | Not started | - |
 | 3. Compare Profiles & Export | 0/TBD | Not started | - |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
