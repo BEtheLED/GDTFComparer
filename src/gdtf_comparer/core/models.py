@@ -53,7 +53,13 @@ class FixtureModel:
         manufacturer: The fixture's manufacturer name.
         attributes: The namespaced display projection of this fixture's
             attributes for the Phase-1 categories (D-10/D-11) -- keyed by
-            AttributeKey, not by bare attribute name.
+            AttributeKey, not by bare attribute name. A None value means the
+            attribute is not declared for that element in this file: either
+            the owning element is absent, or the manufacturer's
+            description.xml does not declare that attribute. GDTF-spec
+            defaults that pygdtf substitutes for an omitted attribute are
+            never reported here as if they were declared values (Plan
+            01-06; closes 01-VERIFICATION.md Truth 6 / 01-REVIEW.md CR-01).
         fixture_type: The full pygdtf FixtureType object model retained
             verbatim (D-09), exposing .geometries, .dmx_modes, .wheels,
             .models and .properties for later phases. Excluded from repr
@@ -92,7 +98,13 @@ class ComparisonRow:
 
     @property
     def any_differs(self) -> bool:
-        """Return True if any comparison value differs from the target."""
+        """Return True if any comparison value differs from the target.
+
+        Row-level predicate kept as intended future surface for Phase 2 diff
+        highlighting (DIFF-01) and Phase 3 diff-only export (EXPORT-02).
+        Review IN-01 decided to keep it unused in Phase 1; exercised by
+        tests/core/test_models.py (Plan 01-07).
+        """
         return any(self.differs)
 
 
@@ -118,8 +130,9 @@ def format_value(value: AttributeValue) -> str:
         value: The value to format.
 
     Returns:
-        "N/A" for None; a compact decimal string for float (no trailing
-        zeros); str(value) for int; the string itself for str.
+        "N/A" for None (meaning: not specified in this file, per
+        FixtureModel.attributes); a compact decimal string for float (no
+        trailing zeros); str(value) for int; the string itself for str.
     """
     if value is None:
         return "N/A"
