@@ -69,6 +69,18 @@ def test_color_scheme_change_switches_theme(qapp, monkeypatch):
     assert len(calls) == 2
 
 
+def test_follower_reports_current_theme(qapp):
+    follower = install_os_theme(qapp)
+
+    assert follower.current_theme == qapp.property(THEME_PROPERTY)
+
+    follower.on_color_scheme_changed(Qt.ColorScheme.Dark)
+    assert follower.current_theme == DARK_THEME
+
+    follower.on_color_scheme_changed(Qt.ColorScheme.Light)
+    assert follower.current_theme == LIGHT_THEME
+
+
 def test_create_main_window_applies_theme(qapp, qtbot):
     window1 = create_main_window(qapp)
     qtbot.addWidget(window1)

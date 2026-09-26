@@ -14,14 +14,17 @@ later phases.
 ## Setup
 
 ```bash
-python3.12 -m venv .venv
+python3 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"
 ```
+
+Any Python 3.11 or newer works (for example `python3.11` or `python3.12`) —
+substitute the interpreter you have if `python3` doesn't resolve to one.
 
 On Windows, use the equivalent commands:
 
 ```bat
-python3.12 -m venv .venv
+py -3 -m venv .venv
 .venv\Scripts\python -m pip install -e ".[dev]"
 ```
 
