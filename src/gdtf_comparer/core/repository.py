@@ -1,17 +1,26 @@
 """Loads a .gdtf file into a FixtureModel using pygdtf (PARSE-01, D-09).
 
-Reads the archive in place -- no copying, no temporary directories (avoids
-the double-I/O anti-pattern in the old BEtheLD.parse_gdtf()). Errors from
-pygdtf/zipfile propagate unchanged for now; Plan 01-04 adds pre-validation
-and typed errors inside this same load() call site.
+load() = prevalidate_gdtf() -> pygdtf on the already-validated bytes ->
+typed errors (RELI-01, RELI-02, D-12). The archive is read once into memory
+by prevalidate_gdtf(); pygdtf then parses io.BytesIO of those same bytes, so
+there is no second disk read and no check-then-parse (TOCTOU) gap -- T-01-15.
 """
 
+import io
 import os
 
 import pygdtf
 
+from gdtf_comparer.core.errors import GDTFError, GDTFParseError, GDTFValidationError
 from gdtf_comparer.core.extract import extract_attributes
+from gdtf_comparer.core.hardening import prevalidate_gdtf
 from gdtf_comparer.core.models import FixtureModel
+
+# Defence in depth: pygdtf substitutes this stub fixture for malformed XML
+# instead of raising (RESEARCH Pitfall 1). prevalidate_gdtf() already rejects
+# malformed XML before pygdtf ever runs, so this should be unreachable -- but
+# it must never be displayed as if it were the user's file if it is.
+PYGDTF_BROKEN_XML_STUB_NAME = "Original File Had Broken XML"
 
 
 class FixtureRepository:
@@ -27,15 +36,37 @@ class FixtureRepository:
             A FixtureModel with the namespaced attribute projection
             (core.extract.extract_attributes) and the full pygdtf
             FixtureType retained on .fixture_type (D-09).
+
+        Raises:
+            GDTFValidationError: The file is not a valid, safe GDTF archive.
+            GDTFUnsafeFileError: The file was rejected by a RELI-02 safety
+                limit (subclass of GDTFValidationError).
+            GDTFParseError: pygdtf itself failed on the validated bytes.
         """
-        # Propagate any pygdtf/zipfile error unchanged so callers can handle
-        # it (e.g. tests); Plan 01-04 adds pre-validation + typed errors here.
-        with pygdtf.FixtureType(path) as fixture_type:
-            attributes = extract_attributes(fixture_type)
-            return FixtureModel(
-                source_path=path,
-                name=fixture_type.name or os.path.basename(path),
-                manufacturer=fixture_type.manufacturer or "",
-                attributes=attributes,
-                fixture_type=fixture_type,
-            )
+        data = prevalidate_gdtf(path)
+
+        try:
+            with pygdtf.FixtureType(io.BytesIO(data)) as fixture_type:
+                if fixture_type.name == PYGDTF_BROKEN_XML_STUB_NAME:
+                    raise GDTFValidationError(
+                        path, "it does not contain a GDTF fixture definition."
+                    )
+                attributes = extract_attributes(fixture_type)
+                return FixtureModel(
+                    source_path=path,
+                    name=fixture_type.name or os.path.basename(path),
+                    manufacturer=fixture_type.manufacturer or "",
+                    attributes=attributes,
+                    fixture_type=fixture_type,
+                )
+        except GDTFError:
+            # Already a typed error (e.g. the stub-name check above) --
+            # propagate unchanged so callers see the specific failure.
+            raise
+        except Exception as exc:
+            # Anything else from pygdtf/extraction on already-validated bytes
+            # is propagated as a typed error so callers can show a friendly
+            # message (D-12) instead of an uncaught exception.
+            raise GDTFParseError(
+                path, f"its GDTF data could not be parsed ({type(exc).__name__})."
+            ) from exc
