@@ -73,30 +73,30 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PARSE-01 | TBD | Pending |
-| PARSE-02 | TBD | Pending |
-| ATTR-01 | TBD | Pending |
-| ATTR-02 | TBD | Pending |
-| ATTR-03 | TBD | Pending |
-| DIFF-01 | TBD | Pending |
-| EXPORT-01 | TBD | Pending |
-| EXPORT-02 | TBD | Pending |
-| UI-01 | TBD | Pending |
-| UI-02 | TBD | Pending |
-| RELI-01 | TBD | Pending |
-| RELI-02 | TBD | Pending |
-| PKG-01 | TBD | Pending |
-| PKG-02 | TBD | Pending |
-| PKG-03 | TBD | Pending |
-| NET-01 | TBD | Pending |
-| NET-02 | TBD | Pending |
-| NET-03 | TBD | Pending |
+| PARSE-01 | Phase 1 | Pending |
+| PARSE-02 | Phase 5 | Pending |
+| ATTR-01 | Phase 2 | Pending |
+| ATTR-02 | Phase 2 | Pending |
+| ATTR-03 | Phase 3 | Pending |
+| DIFF-01 | Phase 2 | Pending |
+| EXPORT-01 | Phase 3 | Pending |
+| EXPORT-02 | Phase 3 | Pending |
+| UI-01 | Phase 1 | Pending |
+| UI-02 | Phase 1 | Pending |
+| RELI-01 | Phase 1 | Pending |
+| RELI-02 | Phase 1 | Pending |
+| PKG-01 | Phase 4 | Pending |
+| PKG-02 | Phase 4 | Pending |
+| PKG-03 | Phase 4 | Pending |
+| NET-01 | Phase 5 | Pending |
+| NET-02 | Phase 5 | Pending |
+| NET-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 18 total
-- Mapped to phases: 0 (pending roadmap creation)
-- Unmapped: 18 ⚠️ (roadmap creation will populate this)
+- Mapped to phases: 18 (Phase 1: 5, Phase 2: 3, Phase 3: 3, Phase 4: 3, Phase 5: 4)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-25*
-*Last updated: 2026-09-25 after initial definition*
+*Last updated: 2026-09-25 after roadmap creation*
