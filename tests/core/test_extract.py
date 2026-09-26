@@ -1,8 +1,9 @@
 """Unit tests for core.extract: per-GeometryBeam and per-Model namespacing (D-11)."""
 
 import pygdtf
+import pytest
 
-from gdtf_comparer.core.extract import extract_attributes
+from gdtf_comparer.core.extract import DescriptionMismatchError, extract_attributes
 from gdtf_comparer.core.hardening import prevalidate_gdtf_document
 from gdtf_comparer.core.models import (
     CATEGORY_BEAM,
@@ -199,3 +200,111 @@ def test_unnamed_model_label(make_gdtf):
     attributes = _extract(path)
 
     assert attributes[AttributeKey(CATEGORY_PHYSICAL, "(unnamed model 1)", "Width")] == 0.1
+
+
+def test_omitted_beam_attributes_are_none(make_gdtf):
+    geometries_xml = '<Geometry Name="Head"><Beam Name="Beam" BeamAngle="10"/></Geometry>'
+    path = make_gdtf("fixture.gdtf", geometries_xml=geometries_xml)
+
+    with pygdtf.FixtureType(str(path)) as fixture_type:
+        # pygdtf itself backfills spec defaults for every omitted attribute --
+        # proves the substitution this test guards against is real.
+        beam_node = fixture_type.geometries[0].geometries[0]
+        assert beam_node.field_angle == 25.0
+        assert beam_node.power_consumption == 1000.0
+        assert beam_node.luminous_flux == 10000.0
+        assert beam_node.color_temperature == 6000.0
+        assert beam_node.beam_type.value == "Wash"
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "BeamAngle")] == 10.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "FieldAngle")] is None
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "PowerConsumption")] is None
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "LuminousFlux")] is None
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "ColorTemperature")] is None
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "BeamType")] is None
+    beam_keys = [
+        key
+        for key in attributes
+        if key.category == CATEGORY_BEAM and key.element_path == "Head/Beam"
+    ]
+    assert len(beam_keys) == 6
+
+
+def test_declared_spec_default_values_are_kept(make_gdtf):
+    geometries_xml = (
+        '<Geometry Name="Head">'
+        '<Beam Name="Beam" BeamAngle="25" FieldAngle="25" PowerConsumption="1000"'
+        ' LuminousFlux="10000" ColorTemperature="6000" BeamType="Wash"/>'
+        "</Geometry>"
+    )
+    path = make_gdtf("fixture.gdtf", geometries_xml=geometries_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "BeamAngle")] == 25.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "FieldAngle")] == 25.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "PowerConsumption")] == 1000.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "LuminousFlux")] == 10000.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "ColorTemperature")] == 6000.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "BeamType")] == "Wash"
+
+
+def test_omitted_model_dimensions_are_none(make_gdtf):
+    models_xml = '<Model Name="Base" Width="0.4"/>'
+    path = make_gdtf("fixture.gdtf", models_xml=models_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Base", "Width")] == 0.4
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Base", "Height")] is None
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, "Base", "Length")] is None
+    model_keys = [
+        key
+        for key in attributes
+        if key.category == CATEGORY_PHYSICAL and key.element_path == "Base"
+    ]
+    assert len(model_keys) == 3
+
+
+def test_presence_alignment_skips_references_and_unknown_tags(make_gdtf):
+    geometries_xml = (
+        '<Geometry Name="Body">'
+        '<Geometry Name="Head1"><Beam Name="Beam" BeamAngle="10"/></Geometry>'
+        '<GeometryReference Name="Ref" Geometry="Head1">'
+        '<Break DMXOffset="1" DMXBreak="1"/>'
+        "</GeometryReference>"
+        '<NotAGeometry Name="Unknown"><Beam Name="Beam" BeamAngle="99"/></NotAGeometry>'
+        '<Geometry Name="Head2"><Beam Name="Beam" FieldAngle="40"/></Geometry>'
+        "</Geometry>"
+    )
+    path = make_gdtf("fixture.gdtf", geometries_xml=geometries_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Body/Head1/Beam", "BeamAngle")] == 10.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Body/Head1/Beam", "FieldAngle")] is None
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Body/Head2/Beam", "FieldAngle")] == 40.0
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Body/Head2/Beam", "BeamAngle")] is None
+    beam_paths = {key.element_path for key in attributes if key.category == CATEGORY_BEAM}
+    assert beam_paths == {"Body/Head1/Beam", "Body/Head2/Beam"}
+
+
+def test_mismatched_description_raises(make_gdtf):
+    validated_path = make_gdtf(
+        "two-beams.gdtf",
+        geometries_xml=(
+            '<Geometry Name="Head1"><Beam Name="Beam" BeamAngle="10"/></Geometry>'
+            '<Geometry Name="Head2"><Beam Name="Beam" BeamAngle="20"/></Geometry>'
+        ),
+    )
+    fixture_path = make_gdtf(
+        "one-beam.gdtf",
+        geometries_xml='<Geometry Name="Head1"><Beam Name="Beam" BeamAngle="10"/></Geometry>',
+    )
+    validated = prevalidate_gdtf_document(str(validated_path))
+
+    with pygdtf.FixtureType(str(fixture_path)) as fixture_type:
+        with pytest.raises(DescriptionMismatchError):
+            extract_attributes(fixture_type, validated.description_root)

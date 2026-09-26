@@ -98,6 +98,68 @@ def test_rows_ordered_beam_then_physical(make_gdtf):
     assert last_beam_index < first_physical_index
 
 
+def test_both_files_omitting_attribute_show_na_not_default(make_gdtf):
+    geometries_xml = '<Geometry Name="Head"><Beam Name="Beam" BeamAngle="10"/></Geometry>'
+    target = make_gdtf("target.gdtf", name="Target", geometries_xml=geometries_xml)
+    comparison = make_gdtf(
+        "comparison.gdtf", name="Comparison", geometries_xml=geometries_xml
+    )
+
+    result = compare_files(str(target), [str(comparison)])
+
+    field_angle_rows = [
+        row
+        for row in result.rows
+        if row.key.category == CATEGORY_BEAM and row.key.attribute == "FieldAngle"
+    ]
+    assert len(field_angle_rows) == 1
+    row = field_angle_rows[0]
+
+    assert row.target_value is None
+    assert row.comparison_values == (None,)
+    assert row.differs == (False,)
+    assert format_value(row.target_value) == "N/A"
+    assert format_value(row.comparison_values[0]) == "N/A"
+
+
+def test_omitted_vs_declared_default_differs(make_gdtf):
+    target = make_gdtf(
+        "target.gdtf",
+        name="Target",
+        geometries_xml='<Geometry Name="Head"><Beam Name="Beam" FieldAngle="20"/></Geometry>',
+    )
+    comparison = make_gdtf(
+        "comparison.gdtf",
+        name="Comparison",
+        geometries_xml=(
+            '<Geometry Name="Head">'
+            '<Beam Name="Beam" BeamAngle="25" FieldAngle="20"/>'
+            "</Geometry>"
+        ),
+    )
+
+    result = compare_files(str(target), [str(comparison)])
+
+    beam_angle_rows = [
+        row
+        for row in result.rows
+        if row.key.category == CATEGORY_BEAM and row.key.attribute == "BeamAngle"
+    ]
+    assert len(beam_angle_rows) == 1
+    beam_angle_row = beam_angle_rows[0]
+    assert beam_angle_row.target_value is None
+    assert beam_angle_row.comparison_values == (25.0,)
+    assert beam_angle_row.differs == (True,)
+
+    field_angle_rows = [
+        row
+        for row in result.rows
+        if row.key.category == CATEGORY_BEAM and row.key.attribute == "FieldAngle"
+    ]
+    assert len(field_angle_rows) == 1
+    assert field_angle_rows[0].differs == (False,)
+
+
 def test_only_display_categories(make_gdtf):
     models_xml = '<Model Name="Base" Width="0.1" Height="0.1" Length="0.1"/>'
     target = make_gdtf(
