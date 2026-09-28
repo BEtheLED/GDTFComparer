@@ -1,14 +1,57 @@
 """QAbstractTableModel presenting a ComparisonResult (D-13 -> presentation)."""
 
-from typing import Any, Optional
+from collections import Counter
+from typing import Any, Optional, Tuple
 
 from PySide6.QtCore import QAbstractTableModel, QIdentityProxyModel, QModelIndex, Qt
 
 from gdtf_comparer.core.models import ComparisonResult, format_value
 
 
+def _value_column_labels(result: Optional[ComparisonResult]) -> Tuple[str, ...]:
+    """Derive per-file header labels for a ComparisonResult's value columns.
+
+    Parameters:
+        result: The ComparisonResult to derive labels for, or None.
+
+    Returns:
+        An empty tuple for None. Otherwise one label per model (target first,
+        then each comparison, in order): the model's stripped ``name`` when
+        that name, compared case-and-whitespace-insensitively
+        (``str.strip().casefold()``) against every other model's stripped
+        name, is unique and non-empty; the model's ``file_name`` otherwise.
+
+        Headers render uppercase (UppercaseHeaderProxyModel), so a
+        case-only difference between two names would look identical to the
+        user -- that is why the collision key folds case as well as
+        whitespace. Falling back to the file name keeps two revisions of one
+        fixture (e.g. "...@V2.gdtf" / "...@V3.gdtf") distinguishable, since
+        GDTF file names conventionally start with Manufacturer@Model and end
+        with the revision.
+    """
+    if result is None:
+        return ()
+    models = (result.target,) + tuple(result.comparisons)
+    name_counts = Counter(model.name.strip().casefold() for model in models)
+    labels = []
+    for model in models:
+        key = model.name.strip().casefold()
+        if key and name_counts[key] == 1:
+            labels.append(model.name.strip())
+        else:
+            labels.append(model.file_name)
+    return tuple(labels)
+
+
 class ComparisonTableModel(QAbstractTableModel):
-    """Table model over a ComparisonResult: category, element, attribute, values."""
+    """Table model over a ComparisonResult: category, element, attribute, values.
+
+    Per-file value-column headers show each fixture's name (fixture Name
+    falling back to file_name when a name is blank or collides with another
+    compared fixture's name; see _value_column_labels) -- kept in natural
+    case here even though the view paints headers uppercase, so any other
+    consumer of this model (e.g. a future CSV export) sees the real name.
+    """
 
     COL_CATEGORY = 0
     COL_ELEMENT = 1
@@ -18,6 +61,7 @@ class ComparisonTableModel(QAbstractTableModel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._result: Optional[ComparisonResult] = None
+        self._value_labels: Tuple[str, ...] = ()
 
     def set_result(self, result: Optional[ComparisonResult]) -> None:
         """Replace the displayed result, resetting the model.
@@ -27,6 +71,7 @@ class ComparisonTableModel(QAbstractTableModel):
         """
         self.beginResetModel()
         self._result = result
+        self._value_labels = _value_column_labels(result)
         self.endResetModel()
 
     def result(self) -> Optional[ComparisonResult]:
@@ -95,7 +140,12 @@ class ComparisonTableModel(QAbstractTableModel):
         return None
 
     def _header_label(self, section: int) -> Any:
-        """Return the DisplayRole header text for one column."""
+        """Return the DisplayRole header text for one column.
+
+        Value columns (COL_TARGET onward) use each fixture's name, falling
+        back to its file name on a blank or colliding name
+        (_value_column_labels).
+        """
         if section == self.COL_CATEGORY:
             return "Category"
         if section == self.COL_ELEMENT:
@@ -105,14 +155,20 @@ class ComparisonTableModel(QAbstractTableModel):
         if section == self.COL_TARGET:
             if self._result is None:
                 return "Target"
-            return f"Target: {self._result.target.file_name}"
+            return f"Target: {self._value_labels[0]}"
         comparison_index = section - self.COL_TARGET - 1
         if self._result is not None and 0 <= comparison_index < len(self._result.comparisons):
-            return self._result.comparisons[comparison_index].file_name
+            return self._value_labels[1 + comparison_index]
         return None
 
     def _header_tooltip(self, section: int) -> Any:
-        """Return the ToolTipRole header text ("<name> — <source_path>")."""
+        """Return the ToolTipRole header text.
+
+        "<manufacturer> <name> — <source_path>" when the model declares a
+        non-blank manufacturer, else "<name> — <source_path>". The full
+        path (including the real file name) is always shown here, even when
+        the header label itself fell back to the file name.
+        """
         if self._result is None:
             return None
         if section == self.COL_TARGET:
@@ -122,6 +178,8 @@ class ComparisonTableModel(QAbstractTableModel):
             if not (0 <= comparison_index < len(self._result.comparisons)):
                 return None
             model = self._result.comparisons[comparison_index]
+        if model.manufacturer.strip():
+            return f"{model.manufacturer} {model.name} — {model.source_path}"
         return f"{model.name} — {model.source_path}"
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:

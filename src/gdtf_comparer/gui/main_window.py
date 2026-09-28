@@ -43,6 +43,14 @@ _LOGGER = logging.getLogger(__name__)
 # comparison is still waited for and finishes cleanly.
 CLOSE_WAIT_TIMEOUT_MS = 3000
 
+# Maximum width, in pixels, a value column is allowed to grow to after
+# resizeColumnsToContents() (01-UAT.md G-01-2). Sized to fit "TARGET: " plus
+# a typical fixture name at qt-material's 13 px Roboto header font (same in
+# both themes), and to keep a target plus one comparison inside the default
+# 1000 px window with no horizontal scrollbar. Read at call time by
+# _fit_columns_to_contents, not captured as a default argument.
+MAX_COLUMN_WIDTH_PX = 280
+
 
 def _normalized_path(path: str) -> str:
     """Return a canonical key for path so alias forms compare equal.
@@ -128,6 +136,11 @@ class MainWindow(QMainWindow):
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_view.verticalHeader().setVisible(False)
         self.table_view.horizontalHeader().setStretchLastSection(True)
+        # QHeaderView does not elide by default (ElideNone). GDTF file names
+        # end with the revision (e.g. "...@V2.gdtf" / "...@V3.gdtf"), so
+        # middle elision keeps that distinguishing ending visible when a
+        # label is longer than its capped column width (G-01-2).
+        self.table_view.horizontalHeader().setTextElideMode(Qt.TextElideMode.ElideMiddle)
         layout.addWidget(self.table_view)
 
         self.statusBar().showMessage("Ready")
@@ -278,10 +291,25 @@ class MainWindow(QMainWindow):
             result: The ComparisonResult produced by the worker.
         """
         self.table_model.set_result(result)
-        self.table_view.resizeColumnsToContents()
+        self._fit_columns_to_contents()
         self.statusBar().showMessage(
             f"Compared {len(result.comparisons)} file(s) against {result.target.file_name}"
         )
+
+    def _fit_columns_to_contents(self) -> None:
+        """Size columns to their contents, then cap each at MAX_COLUMN_WIDTH_PX.
+
+        The clamp is applied per section after resizeColumnsToContents(),
+        rather than via a header-wide maximum section size, so the stretched
+        last section still fills the window (setStretchLastSection) and the
+        user can still drag any column wider than the cap to read a full
+        name in the header or a cell (G-01-2).
+        """
+        self.table_view.resizeColumnsToContents()
+        header = self.table_view.horizontalHeader()
+        for section in range(header.count()):
+            if header.sectionSize(section) > MAX_COLUMN_WIDTH_PX:
+                header.resizeSection(section, MAX_COLUMN_WIDTH_PX)
 
     def on_comparison_failed(self, message: str) -> None:
         """Clear the table and show a friendly error for a failed comparison.
