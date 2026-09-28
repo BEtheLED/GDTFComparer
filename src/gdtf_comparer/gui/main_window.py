@@ -43,13 +43,23 @@ _LOGGER = logging.getLogger(__name__)
 # comparison is still waited for and finishes cleanly.
 CLOSE_WAIT_TIMEOUT_MS = 3000
 
-# Maximum width, in pixels, a value column is allowed to grow to after
-# resizeColumnsToContents() (01-UAT.md G-01-2). Sized to fit "TARGET: " plus
-# a typical fixture name at qt-material's 13 px Roboto header font (same in
-# both themes), and to keep a target plus one comparison inside the default
-# 1000 px window with no horizontal scrollbar. Read at call time by
-# _fit_columns_to_contents, not captured as a default argument.
+# Maximum width, in pixels, a value column is normally allowed to grow to
+# after resizeColumnsToContents() (01-UAT.md G-01-2). Sized to fit
+# "TARGET: " plus a typical fixture name at qt-material's 13 px Roboto
+# header font (same in both themes). When there isn't room for every value
+# column at this width -- i.e. more than a target plus one comparison at
+# the default 1000 px window -- _fit_columns_to_contents shrinks the cap
+# further so any number of comparison files still fits without a
+# horizontal scrollbar (WR-01), rather than only the single-comparison
+# case. Read at call time by _fit_columns_to_contents, not captured as a
+# default argument.
 MAX_COLUMN_WIDTH_PX = 280
+
+# Floor, in pixels, for the adaptive value-column cap in
+# _fit_columns_to_contents (WR-01). Keeps a value column from being
+# squeezed to an unreadable sliver when many comparison files are open at
+# once -- past this point a horizontal scrollbar is the lesser evil.
+MIN_VALUE_COLUMN_WIDTH_PX = 120
 
 
 def _normalized_path(path: str) -> str:
@@ -297,7 +307,7 @@ class MainWindow(QMainWindow):
         )
 
     def _fit_columns_to_contents(self) -> None:
-        """Size columns to their contents, then cap each value column at MAX_COLUMN_WIDTH_PX.
+        """Size columns to their contents, then cap each value column's width.
 
         Only value columns (COL_TARGET onward, i.e. one per compared
         fixture) are capped: Category/Element/Attribute are left at their
@@ -307,6 +317,15 @@ class MainWindow(QMainWindow):
         capping it can right-elide two different element paths down to
         identical visible text.
 
+        The cap itself adapts to how many value columns there are: it is
+        the smaller of MAX_COLUMN_WIDTH_PX and an even share of the space
+        left in the viewport after the fixed columns, floored at
+        MIN_VALUE_COLUMN_WIDTH_PX (WR-01). MAX_COLUMN_WIDTH_PX alone was
+        only ever sized for a target plus one comparison; sharing the
+        remaining viewport width keeps *any* number of comparison files --
+        the product's actual "compare against any number of files" use
+        case -- inside the viewport without a horizontal scrollbar.
+
         The clamp is applied per section after resizeColumnsToContents(),
         rather than via a header-wide maximum section size, so the stretched
         last section still fills the window (setStretchLastSection) and the
@@ -315,9 +334,23 @@ class MainWindow(QMainWindow):
         """
         self.table_view.resizeColumnsToContents()
         header = self.table_view.horizontalHeader()
+
+        num_value_columns = header.count() - ComparisonTableModel.COL_TARGET
+        value_cap = MAX_COLUMN_WIDTH_PX
+        if num_value_columns > 0:
+            fixed_width = sum(
+                header.sectionSize(section)
+                for section in range(ComparisonTableModel.COL_TARGET)
+            )
+            available_width = max(0, self.table_view.viewport().width() - fixed_width)
+            value_cap = max(
+                MIN_VALUE_COLUMN_WIDTH_PX,
+                min(MAX_COLUMN_WIDTH_PX, available_width // num_value_columns),
+            )
+
         for section in range(ComparisonTableModel.COL_TARGET, header.count()):
-            if header.sectionSize(section) > MAX_COLUMN_WIDTH_PX:
-                header.resizeSection(section, MAX_COLUMN_WIDTH_PX)
+            if header.sectionSize(section) > value_cap:
+                header.resizeSection(section, value_cap)
 
     def on_comparison_failed(self, message: str) -> None:
         """Clear the table and show a friendly error for a failed comparison.

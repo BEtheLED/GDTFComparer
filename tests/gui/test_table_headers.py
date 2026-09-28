@@ -193,6 +193,40 @@ def test_colliding_or_blank_names_fall_back_to_file_names(qapp):
     assert model.headerData(col_target, Qt.Orientation.Horizontal) == "Target"
 
 
+def _make_multi_comparison_result(
+    comparison_names, target_name: str = "Target Fixture"
+) -> ComparisonResult:
+    """Build a ComparisonResult with a target and N comparison files, one short row.
+
+    Mirrors _make_short_result but supports any number of comparison files, so
+    tests can exercise the N>1 case (WR-01) rather than only the single
+    -comparison case _make_short_result is limited to.
+    """
+    target = FixtureModel(
+        source_path="/fixtures/target.gdtf",
+        name=target_name,
+        manufacturer="M",
+        attributes={},
+    )
+    comparisons = tuple(
+        FixtureModel(
+            source_path=f"/fixtures/comparison_{index}.gdtf",
+            name=name,
+            manufacturer="M",
+            attributes={},
+        )
+        for index, name in enumerate(comparison_names)
+    )
+    key = AttributeKey(CATEGORY_BEAM, "Beam", "BeamAngle")
+    row = ComparisonRow(
+        key=key,
+        target_value=10.0,
+        comparison_values=tuple(12.0 for _ in comparisons),
+        differs=tuple(True for _ in comparisons),
+    )
+    return ComparisonResult(target=target, comparisons=comparisons, rows=(row,))
+
+
 def test_long_headers_are_capped_and_elided(qapp, qtbot):
     """Long header labels are capped to MAX_COLUMN_WIDTH_PX, elide in the middle, and the
     table never needs a horizontal scrollbar at the default window size -- while the user
@@ -224,3 +258,34 @@ def test_long_headers_are_capped_and_elided(qapp, qtbot):
     widened = main_window_module.MAX_COLUMN_WIDTH_PX + 200
     header.resizeSection(col_target, widened)
     assert header.sectionSize(col_target) == widened
+
+
+def test_many_comparisons_with_realistic_names_need_no_scrollbar(qapp, qtbot):
+    """target + 3 comparison files with realistic (~30-40 char) fixture names still fit
+    the default window with no horizontal scrollbar (WR-01): MAX_COLUMN_WIDTH_PX alone was
+    only ever sized for a target plus one comparison, so the cap must shrink further to
+    share the viewport across every value column, not just the single-comparison case."""
+    apply_theme(qapp, LIGHT_THEME)
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+
+    comparison_names = [
+        "Martin MAC Aura XB Wash Fixture",
+        "Robe Lighting MegaPointe Spot Fixture",
+        "Ayrton Diablo Profile Moving Head",
+    ]
+    result = _make_multi_comparison_result(
+        comparison_names, target_name="Chauvet Rogue R2 Wash Fixture"
+    )
+
+    window.on_comparison_ready(result)
+
+    assert window.table_view.horizontalScrollBar().maximum() == 0
+
+    header = window.table_view.horizontalHeader()
+    col_count = window.table_model.columnCount()
+    for section in range(ComparisonTableModel.COL_TARGET, col_count - 1):
+        assert header.sectionSize(section) <= main_window_module.MAX_COLUMN_WIDTH_PX
