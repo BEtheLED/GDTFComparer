@@ -35,7 +35,7 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. The app's interface has a modernized, visually refreshed look, not the stock Tkinter appearance.
   5. The GUI layer no longer calls parsing/comparison logic directly — that logic lives in a separate, independently testable service layer.
 
-**Plans**: 8/8 plans executed (5 original + 3 gap closure)
+**Plans**: 8/9 plans executed (5 original + 4 gap closure)
 
 Plans:
 **Wave 1**
@@ -62,6 +62,12 @@ Plans:
 **Wave 5** *(blocked on 01-06 and 01-07)*
 
 - [x] 01-08-PLAN.md — WR-01: folders/pipes/devices rejected before any read; closing the window never hangs on a stuck worker (wave 5)
+
+**Gap closure** *(from 01-UAT.md G-01-1 and G-01-2)*
+
+**Wave 6** *(blocked on 01-08)*
+
+- [ ] 01-09-PLAN.md — G-01-1/G-01-2 (UI-01): results-table headers read in full in both themes via an uppercase header proxy; per-file headers show fixture names (file names when names collide); 280 px column cap with middle elision (wave 6)
 
 **UI hint**: yes
 
