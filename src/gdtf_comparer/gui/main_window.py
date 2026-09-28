@@ -297,7 +297,15 @@ class MainWindow(QMainWindow):
         )
 
     def _fit_columns_to_contents(self) -> None:
-        """Size columns to their contents, then cap each at MAX_COLUMN_WIDTH_PX.
+        """Size columns to their contents, then cap each value column at MAX_COLUMN_WIDTH_PX.
+
+        Only value columns (COL_TARGET onward, i.e. one per compared
+        fixture) are capped: Category/Element/Attribute are left at their
+        natural content width (CR-01). Element in particular shows an
+        unbounded geometry path (table_model.py), and the table view's
+        *cell* elide mode is not middle-elided the way the header is -- so
+        capping it can right-elide two different element paths down to
+        identical visible text.
 
         The clamp is applied per section after resizeColumnsToContents(),
         rather than via a header-wide maximum section size, so the stretched
@@ -307,7 +315,7 @@ class MainWindow(QMainWindow):
         """
         self.table_view.resizeColumnsToContents()
         header = self.table_view.horizontalHeader()
-        for section in range(header.count()):
+        for section in range(ComparisonTableModel.COL_TARGET, header.count()):
             if header.sectionSize(section) > MAX_COLUMN_WIDTH_PX:
                 header.resizeSection(section, MAX_COLUMN_WIDTH_PX)
 
