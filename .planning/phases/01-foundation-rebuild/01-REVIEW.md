@@ -1,169 +1,193 @@
 ---
 phase: 01-foundation-rebuild
-reviewed: 2026-09-26T00:00:00Z
+reviewed: 2026-09-28T03:30:45Z
 depth: standard
-files_reviewed: 15
+files_reviewed: 4
 files_reviewed_list:
-  - README.md
-  - src/gdtf_comparer/app.py
-  - src/gdtf_comparer/core/extract.py
-  - src/gdtf_comparer/core/hardening.py
-  - src/gdtf_comparer/core/models.py
-  - src/gdtf_comparer/core/repository.py
   - src/gdtf_comparer/gui/main_window.py
-  - tests/core/test_comparator.py
-  - tests/core/test_extract.py
-  - tests/core/test_hardening.py
-  - tests/core/test_models.py
-  - tests/gui/test_file_selection.py
-  - tests/gui/test_shutdown.py
-  - tests/gui/test_theme.py
-  - tests/gui/test_unspecified_values.py
+  - src/gdtf_comparer/gui/table_model.py
+  - tests/gui/test_table_headers.py
+  - tests/test_walking_skeleton.py
 findings:
-  critical: 0
+  critical: 1
   warning: 1
   info: 1
-  total: 2
+  total: 3
 status: issues_found
 ---
 
-# Phase 01: Code Review Report (re-review, gap-closure batch 01-06/01-07/01-08)
+# Phase 01: Code Review Report
 
-**Reviewed:** 2026-09-26
+**Reviewed:** 2026-09-28T03:30:45Z
 **Depth:** standard
-**Files Reviewed:** 15
+**Files Reviewed:** 4
 **Status:** issues_found
 
 ## Summary
 
-This is a re-review scoped to the diff since `904e0ef` — the three gap-closure
-plans (01-06, 01-07, 01-08) that closed prior findings Truth 6/CR-01
-(N/A-vs-spec-default), WR-02 (target/comparison self-selection), IN-01/IN-02
-(hygiene), and WR-01 (indefinite hang on special files and on window close
-during a stuck comparison).
+Reviewed the gap-closure diff (plan 01-09) that fixed two UAT bugs: header text
+clipping under qt-material's CSS uppercase transform (G-01-1, fixed via
+`UppercaseHeaderProxyModel`) and long-filename headers forcing horizontal
+scroll (G-01-2, fixed via `_value_column_labels` name-preference plus
+`MAX_COLUMN_WIDTH_PX` capping/eliding in `_fit_columns_to_contents`).
 
-All four fixes were independently re-derived and verified against the
-actual installed `pygdtf` 1.4.5 source (`.venv/lib/python3.12/site-packages/
-pygdtf/`), not just against the project's own tests:
+`UppercaseHeaderProxyModel` itself is correct and well-targeted: it measures
+exactly what qt-material paints, and I confirmed by instrumenting the real
+`QHeaderView`/`QTableView` that its interaction with `setStretchLastSection`
+behaves exactly as the docstring claims (the last section is always
+re-stretched to fill remaining space regardless of the cap, so the loop is a
+harmless no-op there).
 
-- **Truth 6 / CR-01 (`core/extract.py`, `core/hardening.py`,
-  `core/repository.py`)** — `extract_attributes` now takes the validated
-  `<GDTF>` tree alongside the pygdtf `FixtureType` and checks, attribute by
-  attribute, whether the manufacturer's file actually declared it, using
-  the exact same lookup chains pygdtf itself uses internally
-  (`FixtureType._root.find("Geometries"/"Models")`,
-  `Properties`'s `PhysicalDescriptions → Properties → Weight` chain with a
-  `Value` attribute requirement, `TAG_TO_GEOMETRY_CLASS` as the child-tag
-  filter). I traced each of these against pygdtf's real source and confirmed
-  the presence checks in `_weight_declared`, `iter_geometry_paths` and
-  `extract_attributes` align element-for-element with how pygdtf itself
-  walks the tree, including the `GeometryReference`-has-no-`.geometries`
-  special case and the fact that `Geometry.__init__` always initializes
-  `.geometries` to an (empty) list, never `None`, so the lockstep walk can't
-  false-positive a `DescriptionMismatchError` on an ordinary childless
-  geometry. This fix is correct and well-tested (`tests/core/test_extract.py`,
-  `tests/core/test_comparator.py`).
-- **WR-02 (`gui/main_window.py`)** — `_normalized_path` (realpath + normcase)
-  is now used consistently in both `set_target_file` (evicts an
-  already-listed alias of the new target) and `add_compare_files` (refuses
-  an alias of the current target), with status-bar feedback in both
-  directions. Traced through the alias/symlink/`./`-segment test cases in
-  `tests/gui/test_file_selection.py` and found the logic sound: guards
-  against `self.target_file == ""` before computing a key, uses a
-  `existing_keys` set to prevent both target-collision and intra-call
-  duplicate-add races, and reports the skip/eviction message exactly once
-  per call.
-- **WR-01, T-01-28 (`core/hardening.py::read_gdtf_bytes`)** — opens the path
-  once with `O_NONBLOCK` (where available), does the regular-file check via
-  `fstat` on that same descriptor (no separate stat-then-open gap, T-01-30),
-  and only then reads. This correctly turns what would otherwise be an
-  indefinite `open()` block on a FIFO into an immediate, friendly
-  `GDTFValidationError`. Verified this is consistent with POSIX semantics
-  (a nonblocking read-side FIFO open never waits for a writer) and with
-  `stat.S_ISREG` correctly excluding FIFOs/devices/directories while still
-  reading regular files fully into memory in one pass.
-- **WR-01, T-01-29 (`gui/main_window.py::closeEvent`, `app.py::main`)** — the
-  bounded `thread.wait(CLOSE_WAIT_TIMEOUT_MS)` correctly reflects that
-  `QThread.quit()` cannot interrupt a slot (`ComparisonWorker.run`) that is
-  still synchronously blocked in a kernel read, since the thread's `exec()`
-  event loop hasn't even started yet at that point — the timeout is the only
-  way out, and `app.main`'s post-`exec()` `os._exit` on a still-running
-  worker correctly avoids the Qt `QThread`-destroyed-while-running abort.
-  Confirmed via both the unit test (bounded elapsed time) and the
-  process-level subprocess test (clean exit code 0).
+However, the width-cap loop in `_fit_columns_to_contents` is not scoped to
+"value columns" the way its own docstring and `MAX_COLUMN_WIDTH_PX` comment
+claim — it caps every column, including `Category`/`Element`/`Attribute`.
+Because the table view's own cell text-elide mode was never changed (only the
+*header's* elide mode was set to `ElideMiddle`), this reintroduces a
+readability defect in the `Element` column that has nothing to do with either
+G-01-1 or G-01-2 and can make two genuinely different rows display identical
+text. I reproduced this empirically (see CR-01). I also reproduced that the
+G-01-2 "no horizontal scrollbar" fix only holds for the single-comparison
+case the tests exercise; it does not generalize to the product's core
+"compare against any number of files" use case (see WR-01).
 
-One robustness gap was found in the new `read_gdtf_bytes` code (see WR-01
-below — using this review's own finding numbering, unrelated to the
-project's identically-named historical WR-01 gap-closure item). It does not
-regress any of the four fixes above and does not reproduce the original
-hang, but it does let one class of OS-level failure escape the function's
-documented, typed-error contract.
+## Critical Issues
 
-The full test suite (89 tests) passes locally.
+### CR-01: Column-width cap is applied to fixed columns too, and can make two different Element paths render as identical text
+
+**File:** `src/gdtf_comparer/gui/main_window.py:299-312`
+**Issue:**
+
+`_fit_columns_to_contents` loops over *every* header section:
+
+```python
+self.table_view.resizeColumnsToContents()
+header = self.table_view.horizontalHeader()
+for section in range(header.count()):
+    if header.sectionSize(section) > MAX_COLUMN_WIDTH_PX:
+        header.resizeSection(section, MAX_COLUMN_WIDTH_PX)
+```
+
+but the surrounding comment and the `MAX_COLUMN_WIDTH_PX` docstring both
+describe this as capping "a value column" (i.e. `COL_TARGET` and later),
+sized specifically for `"TARGET: " + a fixture name`. `COL_ELEMENT`
+(`table_model.py`) displays `AttributeKey.element_label`, which per
+`core/models.py:29` is "the full path to the owning element (e.g. a geometry
+path...)" — an unbounded, hierarchical string (e.g.
+`"Base -> Yoke -> Head -> LampHousing -> LensAssembly -> DiffuserFilterWheel"`)
+that has nothing to do with either G-01-1 or G-01-2.
+
+I reproduced this with a real `MainWindow` and a single long element path:
+before this diff, `resizeColumnsToContents()` alone sized that column to its
+natural content width (476 px in my repro); after this diff,
+`_fit_columns_to_contents` clamps it to `MAX_COLUMN_WIDTH_PX` (280 px),
+identically to how a value column is clamped.
+
+This alone would just be a readability regression, but it compounds with a
+second gap: only the **header's** elide mode was changed
+(`self.table_view.horizontalHeader().setTextElideMode(Qt.TextElideMode.ElideMiddle)`,
+line 143). `QTableView`'s own (cell) `textElideMode` is untouched and
+defaults to `Qt.TextElideMode.ElideRight` (confirmed: a fresh `QTableView()`
+reports `TextElideMode.ElideRight`). So once the `Element` column is capped
+below its natural width, cell text is elided from the **right**, not the
+middle.
+
+Concretely: two comparison rows whose element paths share a long common
+prefix and differ only near the end (a very ordinary shape for nested GDTF
+geometry, e.g. `"...Head -> Lamp1"` vs `"...Head -> Lamp2"`) will render with
+**identical visible text** in the `Element` column once that shared prefix
+alone exceeds ~280 px, because both get right-elided at the same point. That
+directly contradicts the application's stated core value ("see which
+attributes actually differ" — and, via this column, *where*): the UI can now
+show two different geometry elements as indistinguishable. The full path is
+still recoverable via the cell tooltip (`ComparisonTableModel.data`,
+`ToolTipRole` for `COL_ELEMENT`), but nothing prompts a user to hover when
+the two truncated strings look identical and non-suspicious.
+
+**Fix:** Scope the cap to value columns only, matching what the docstring
+already claims:
+
+```python
+def _fit_columns_to_contents(self) -> None:
+    self.table_view.resizeColumnsToContents()
+    header = self.table_view.horizontalHeader()
+    for section in range(ComparisonTableModel.COL_TARGET, header.count()):
+        if header.sectionSize(section) > MAX_COLUMN_WIDTH_PX:
+            header.resizeSection(section, MAX_COLUMN_WIDTH_PX)
+```
+
+If capping `Element` is still desired for extreme geometry-path lengths, also
+set `self.table_view.setTextElideMode(Qt.TextElideMode.ElideMiddle)` so cell
+elision matches the header's, and add a regression test with two rows whose
+element paths differ only after the cap width to prove they remain visually
+distinguishable.
 
 ## Warnings
 
-### WR-01: `os.set_blocking` failure escapes `read_gdtf_bytes`'s typed-error contract
+### WR-01: G-01-2's "no horizontal scrollbar" fix only holds for the single-comparison case the tests cover
 
-**File:** `src/gdtf_comparer/core/hardening.py:110-111`
-**Issue:** Every other OS-level call in `read_gdtf_bytes` (`os.open`,
-`os.fstat`, `os.fdopen`, `handle.read`) is wrapped in a `try/except OSError`
-that re-raises as `GDTFValidationError`, per the function's documented
-contract ("Raises: GDTFValidationError ... GDTFUnsafeFileError ..."). The one
-call added by this fix that isn't wrapped is:
+**File:** `src/gdtf_comparer/gui/main_window.py:46-52, 299-312`
+**Issue:** `MAX_COLUMN_WIDTH_PX`'s own comment says it is "sized ... to keep a
+target plus **one** comparison inside the default 1000 px window with no
+horizontal scrollbar," and `test_long_headers_are_capped_and_elided` /
+`test_fixed_headers_fit_uppercased_labels` only ever construct a
+`ComparisonResult` with exactly one comparison file. That is a narrower case
+than the bug this gap-closure plan was meant to fix (01-UAT.md G-01-2: "long
+GDTF filenames ... forcing horizontal scroll") and narrower than the
+product's stated core value ("pick a target GDTF file and **any number of**
+comparison files").
 
-```python
-if getattr(os, "O_NONBLOCK", 0):
-    os.set_blocking(fd, True)
-```
+I reproduced the original scrollbar bug still occurring post-fix with a
+realistic (if generous) multi-file comparison: target + 3 comparison files
+with ~70-character fixture names at the default 1000×650 window produces
+`horizontalScrollBar().maximum() == 4` (i.e. scrolling is required again),
+because only the single *last* column is stretch-exempt from the cap — every
+other value column still consumes up to 280 px each, and 3+ of those plus the
+fixed columns exceed the default viewport width. (With 3 more realistically
+short names, e.g. `"Martin MAC Aura XB"`, no scrollbar is needed — so the
+regression is real but name-length/column-count dependent, not universal.)
 
-If this raises `OSError` (e.g. an exotic file-descriptor type — a special
-device, a socket-like fd, or a platform where toggling `O_NONBLOCK` back off
-is refused for a file that nonetheless passed `stat.S_ISREG`), it propagates
-as a raw, untyped `OSError` out of `read_gdtf_bytes` instead of the friendly,
-typed error every other failure path in this function produces. It doesn't
-leak the file descriptor (the outer `finally: if owns_fd: os.close(fd)`
-still runs, since `owns_fd` is only set `False` after `os.fdopen` succeeds),
-and it doesn't crash the app (`ComparisonWorker.run`'s generic
-`except Exception` still converts it to a generic user-facing message), but
-it silently downgrades the specific, friendly "the file could not be read
-(...)" message the rest of this function guarantees, for a rare edge case
-that is easy to close along with the rest.
+Because the only test added for this fix (`test_long_headers_are_capped_and_elided`)
+exercises just one comparison file, it does not actually verify the
+UAT-reported scenario generalizes, and gives false confidence that G-01-2 is
+fully closed.
 
-**Fix:**
-```python
-if getattr(os, "O_NONBLOCK", 0):
-    try:
-        os.set_blocking(fd, True)
-    except OSError as exc:
-        raise GDTFValidationError(
-            path, f"the file could not be read ({exc.strerror})."
-        ) from exc
-```
+**Fix:** Either (a) explicitly document this as a known, accepted limit (e.g.
+rename/re-scope the UAT item to "target + 1 comparison" and note that N>2
+comparisons with long names may still require horizontal scrolling), or (b)
+make the cap adaptive to the number of value columns and available viewport
+width (e.g. `min(MAX_COLUMN_WIDTH_PX, available_width / num_value_columns)`),
+and add a test with 3+ comparison files with realistic (~30-50 char) fixture
+names asserting no scrollbar is required.
 
 ## Info
 
-### IN-01: `_weight_declared`'s docstring slightly misattributes where the lookup chain lives
+### IN-01: Header tooltip doesn't strip whitespace-only/padded names the way the header label does
 
-**File:** `src/gdtf_comparer/core/extract.py:200-207`
-**Issue:** The docstring says `_weight_declared` "Mirrors pygdtf's own lookup
-chain exactly (`Properties._read_xml`)". I checked the installed pygdtf
-source: the `PhysicalDescriptions → Properties` half of that chain is
-actually walked in `pygdtf.FixtureType.__init__`
-(`physical_descriptions_node.find("Properties")`), and only the final
-`Properties → Weight` step happens inside `Properties._read_xml`
-(`xml_node.find("Weight")`, where `xml_node` is already the `<Properties>`
-element). The resulting behavior this function reproduces is correct — I
-verified it end to end — but a future maintainer following the docstring's
-pointer to `Properties._read_xml` to re-verify this against a new pygdtf
-version would land in the wrong method and miss half the chain.
-**Fix:** Reword to "Mirrors pygdtf's own lookup chain exactly
-(`FixtureType.__init__`'s `PhysicalDescriptions → Properties` lookup, then
-`Properties._read_xml`'s `Weight` lookup)" so the pointer covers both
-methods that actually implement the chain.
+**File:** `src/gdtf_comparer/gui/table_model.py:181-183`
+**Issue:** `_value_column_labels` strips `model.name` before using it as the
+header label (`model.name.strip()`), but `_header_tooltip` uses the raw,
+unstripped `model.name`:
+
+```python
+if model.manufacturer.strip():
+    return f"{model.manufacturer} {model.name} — {model.source_path}"
+return f"{model.name} — {model.source_path}"
+```
+
+For a fixture whose name is only whitespace (covered by
+`test_colliding_or_blank_names_fall_back_to_file_names`'s `blank` fixture,
+`name="   "`, `manufacturer=""`), the header label correctly falls back to
+the file name, but the tooltip renders as `"    — /fixtures/blank.gdtf"`
+(literal leading spaces before the em dash) instead of a clean
+`"blank.gdtf — /fixtures/blank.gdtf"`-style message. Purely cosmetic, no
+functional impact.
+
+**Fix:** Use `model.name.strip()` in `_header_tooltip` as well, and consider
+falling back to `model.file_name` there too when the stripped name is empty,
+for consistency with the header label.
 
 ---
 
-_Reviewed: 2026-09-26_
+_Reviewed: 2026-09-28T03:30:45Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
