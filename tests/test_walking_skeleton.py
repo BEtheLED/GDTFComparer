@@ -87,7 +87,7 @@ def test_gui_run_comparison_populates_table(qtbot, make_gdtf):
         model.headerData(col, Qt.Orientation.Horizontal)
         for col in range(model.columnCount())
     ]
-    assert "Target: target.gdtf" in headers
+    assert "Target: Target Fixture" in headers
     assert "a.gdtf" in headers
     assert "b.gdtf" in headers
 
