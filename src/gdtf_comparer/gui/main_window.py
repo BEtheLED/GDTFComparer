@@ -29,7 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from gdtf_comparer.core.models import ComparisonResult
-from gdtf_comparer.gui.table_model import ComparisonTableModel
+from gdtf_comparer.gui.table_model import ComparisonTableModel, UppercaseHeaderProxyModel
 from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
@@ -120,8 +120,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(run_row)
 
         self.table_model = ComparisonTableModel(central)
+        self.header_proxy = UppercaseHeaderProxyModel(central)
+        self.header_proxy.setSourceModel(self.table_model)
         self.table_view = QTableView(central)
-        self.table_view.setModel(self.table_model)
+        self.table_view.setModel(self.header_proxy)
         self.table_view.setAlternatingRowColors(True)
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_view.verticalHeader().setVisible(False)

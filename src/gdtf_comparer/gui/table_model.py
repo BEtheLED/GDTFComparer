@@ -2,7 +2,7 @@
 
 from typing import Any, Optional
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QIdentityProxyModel, QModelIndex, Qt
 
 from gdtf_comparer.core.models import ComparisonResult, format_value
 
@@ -152,3 +152,36 @@ class ComparisonTableModel(QAbstractTableModel):
             ):
                 return index
         return -1
+
+
+class UppercaseHeaderProxyModel(QIdentityProxyModel):
+    """View-only proxy that uppercases horizontal header DisplayRole text.
+
+    qt-material paints ``QHeaderView::section`` text uppercase via CSS
+    ``text-transform``, but Qt's own column-sizing and elision logic measures
+    the text the model returns -- it does not know about that CSS effect. A
+    column sized to fit "Category" is too narrow for the painted "CATEGORY",
+    clipping the label at both ends (01-UAT.md G-01-1). Handing the view text
+    that is already uppercased makes Qt measure and elide exactly what
+    qt-material paints, in both themes and across a live light/dark switch --
+    no custom stylesheet and no edits to the vendored qt-material template
+    (D-05, D-08). Every other role/orientation, and vertical headers, pass
+    through unchanged. The source ComparisonTableModel keeps natural-case
+    labels for any other consumer (e.g. a future CSV export).
+    """
+
+    def headerData(
+        self,
+        section: int,
+        orientation: Qt.Orientation,
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
+        """Return the source header value, uppercased for horizontal DisplayRole text."""
+        value = super().headerData(section, orientation, role)
+        if (
+            orientation == Qt.Orientation.Horizontal
+            and role == Qt.ItemDataRole.DisplayRole
+            and isinstance(value, str)
+        ):
+            return value.upper()
+        return value
