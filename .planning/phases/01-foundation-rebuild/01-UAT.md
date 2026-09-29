@@ -1,24 +1,14 @@
 ---
-status: testing
+status: complete
 phase: 01-foundation-rebuild
 source: [01-VERIFICATION.md]
 started: 2026-09-28T04:20:00Z
-updated: 2026-09-28T04:20:00Z
+updated: 2026-09-28T13:32:00Z
 ---
 
 ## Current Test
 
-number: 1
-name: Visual theme legibility and header readability (re-check after fixes)
-expected: |
-  CATEGORY, ELEMENT and ATTRIBUTE read in full in both Light and Dark mode.
-  The different fixture's column shows its fixture name. The two same-named
-  revisions show their file names, elided in the middle so the revision
-  ending (...V2.gdtf / ...V3.gdtf) stays visible. No header is cut off at
-  its start, and no column grows wide just because a file name is long.
-  Hovering a header shows the manufacturer, the fixture name and the full
-  file path.
-awaiting: user response
+[testing complete]
 
 ## Tests
 
@@ -36,7 +26,7 @@ expected: |
   revision ending stays visible. No header is cut off at its start, and no
   column grows wide just because a file name is long. Hovering a header
   shows the manufacturer, the fixture name and the full file path.
-result: [pending]
+result: pass
 
 ### 2. Real multi-file end-to-end run with no forced horizontal scroll
 expected: |
@@ -49,14 +39,14 @@ expected: |
   non-overlapping column with no forced scroll; the renamed file produces
   one friendly dialog naming it, the table is cleared, and a following
   valid run works without restarting.
-result: [pending]
+result: pass
 
 ## Summary
 
 total: 2
-passed: 0
+passed: 2
 issues: 0
-pending: 2
+pending: 0
 skipped: 0
 blocked: 0
 
