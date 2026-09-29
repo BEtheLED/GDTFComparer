@@ -13,7 +13,7 @@ GDTF Comparer rebuilds a crash-prone Tkinter prototype into a polished, standalo
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation Rebuild** - Spec-correct parsing, decoupled architecture, and a modernized GUI shell replace the old hand-rolled/crash-prone comparer
+- [x] **Phase 1: Foundation Rebuild** - Spec-correct parsing, decoupled architecture, and a modernized GUI shell replace the old hand-rolled/crash-prone comparer (completed 2026-09-29)
 - [ ] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted
 - [ ] **Phase 3: Compare Profiles & Export** - Users can save reusable attribute selections and export comparison results to CSV
 - [ ] **Phase 4: Standalone Packaging** - Users can download and run signed/notarized standalone builds on macOS and Windows with no Python install
@@ -135,7 +135,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation Rebuild | 9/9 | In Progress|  |
+| 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 0/TBD | Not started | - |
 | 3. Compare Profiles & Export | 0/TBD | Not started | - |
 | 4. Standalone Packaging | 0/TBD | Not started | - |

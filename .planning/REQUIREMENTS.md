@@ -30,7 +30,7 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 ### Interface
 
 - [x] **UI-01**: App has a modernized, visually refreshed interface (not the stock Tkinter look)
-- [ ] **UI-02**: App's GUI layer is decoupled from parsing/comparison logic (via a comparator/service layer), replacing the current tightly-coupled design
+- [x] **UI-02**: App's GUI layer is decoupled from parsing/comparison logic (via a comparator/service layer), replacing the current tightly-coupled design
 
 ### Reliability
 
@@ -82,7 +82,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | EXPORT-01 | Phase 3 | Pending |
 | EXPORT-02 | Phase 3 | Pending |
 | UI-01 | Phase 1 | Complete |
-| UI-02 | Phase 1 | Pending |
+| UI-02 | Phase 1 | Complete |
 | RELI-01 | Phase 1 | Complete |
 | RELI-02 | Phase 1 | Complete |
 | PKG-01 | Phase 4 | Pending |
