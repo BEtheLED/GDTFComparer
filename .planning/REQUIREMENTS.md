@@ -20,7 +20,7 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 ### Comparison
 
-- [ ] **DIFF-01**: The comparison table visually highlights which attribute values differ between the target and each comparison file
+- [x] **DIFF-01**: The comparison table visually highlights which attribute values differ between the target and each comparison file
 
 ### Export
 
@@ -78,7 +78,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ATTR-01 | Phase 2 | Complete |
 | ATTR-02 | Phase 2 | Complete |
 | ATTR-03 | Phase 3 | Pending |
-| DIFF-01 | Phase 2 | Pending |
+| DIFF-01 | Phase 2 | Complete |
 | EXPORT-01 | Phase 3 | Pending |
 | EXPORT-02 | Phase 3 | Pending |
 | UI-01 | Phase 1 | Complete |

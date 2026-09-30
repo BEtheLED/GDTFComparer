@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Attribute Browsing & Diff Highlighting
-status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-09-30T16:08:12.098Z"
+status: verifying
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-09-30T16:19:27.713Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 02 execution started
-state_head: 857a54babeaf6225ebb1890b946a5ec4ebbb7684
+state_head: 8b58467f030620451292fd9d512d29c5fad1bf68
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 12
-  completed_plans: 11
+  completed_plans: 12
   percent: 20
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 
 Phase: 02 (Attribute Browsing & Diff Highlighting) — EXECUTING
 Plan: 3 of 3
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-30 — Phase 02 execution started
 
 Progress: [██░░░░░░░░] 20%
@@ -60,6 +60,7 @@ Progress: [██░░░░░░░░] 20%
 |------|----------|-------|-------|
 | Phase 02 P01 | 14 | 2 tasks | 8 files |
 | Phase 02 P02 | ~15min | 2 tasks | 5 files |
+| Phase 02 P03 | 15min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -75,6 +76,8 @@ Recent decisions affecting current work:
 - [Phase 02]: Attribute selection state lives entirely in the GUI layer (AttributePicker); core.comparator.compare() stays a pure, selection-unaware function
 - [Phase 02]: [Phase 02] DMX attribute definitions become one (category, attribute) picker entry each: category is 'DMX: ' + the Feature link's group, attribute is the definition's Name, with a fixed collision-proof prefix so a file-supplied name can never land in or default-check the legacy Beam/Physical Properties categories
 - [Phase 02]: [Phase 02] Beam and Model attribute extraction were converted to route through the same shared presence-check helper (_declared_values) as the new DMX attribute-definition extraction, removing a hand-written per-category presence loop
+- [Phase 02]: [Phase 02]: Confirmed by measurement that qt-material's QTableView::item stylesheet rule suppresses BackgroundRole painting -- a dedicated BackgroundBrushDelegate is required for DIFF-01's highlight to be visible on screen, not just present in model data
+- [Phase 02]: [Phase 02]: ComparisonTableModel stays theme-agnostic (no gui.theme or QApplication import); MainWindow is the sole place that resolves a theme name to a color and hands the model a ready QBrush, recomputed once per theme change and cached, never per painted cell
 
 ### Pending Todos
 
@@ -95,6 +98,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-30T16:08:12.077Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-09-30T16:19:27.692Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None
