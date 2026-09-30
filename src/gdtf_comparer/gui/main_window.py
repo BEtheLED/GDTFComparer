@@ -41,6 +41,12 @@ from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
 
+# Status bar message shown when a comparison has rows but none of them are
+# currently checked in the Attributes panel (D-03; _show_result_status).
+NO_ATTRIBUTES_SELECTED_MESSAGE = (
+    "No attributes selected. Check attributes in the Attributes panel to show them."
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 # How long closeEvent waits for a running worker thread before giving up and
@@ -339,9 +345,6 @@ class MainWindow(QMainWindow):
         self.table_model.set_result(result)
         self.attribute_picker.set_catalog(attribute_catalog(result))
         self._apply_attribute_selection()
-        self.statusBar().showMessage(
-            f"Compared {len(result.comparisons)} file(s) against {result.target.file_name}"
-        )
 
     def _apply_attribute_selection(self) -> None:
         """Push the picker's checked set into the selection proxy and refit.
@@ -353,6 +356,26 @@ class MainWindow(QMainWindow):
         self.selection_proxy.set_selected_attributes(self.attribute_picker.checked_attributes())
         if self.table_model.result() is not None:
             self._fit_columns_to_contents()
+        self._show_result_status()
+
+    def _show_result_status(self) -> None:
+        """Show the status bar message matching the current result/selection.
+
+        The single place that writes the result status (Plan 02-03 extends
+        this with a "no differences" case): does nothing while no result is
+        loaded, shows NO_ATTRIBUTES_SELECTED_MESSAGE when the result has rows
+        but none are currently selected, otherwise the normal "Compared N
+        file(s)..." summary.
+        """
+        result = self.table_model.result()
+        if result is None:
+            return
+        if self.table_model.rowCount() > 0 and self.selection_proxy.rowCount() == 0:
+            self.statusBar().showMessage(NO_ATTRIBUTES_SELECTED_MESSAGE)
+            return
+        self.statusBar().showMessage(
+            f"Compared {len(result.comparisons)} file(s) against {result.target.file_name}"
+        )
 
     def _fit_columns_to_contents(self) -> None:
         """Size columns to their contents, then cap each value column's width.

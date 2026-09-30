@@ -57,7 +57,13 @@ def test_search_hides_non_matching_without_changing_checks(qtbot):
 
     qtbot.keyClicks(picker.search_edit, "angle")
 
-    assert picker.visible_attributes() == (("Beam", "BeamAngle"),)
+    # Substring match on the attribute name (Task 2 action spec): "FieldAngle"
+    # also contains "angle", so both Beam leaves stay visible; only sections
+    # with no matching leaf (Physical Properties, Extra Category) hide.
+    assert set(picker.visible_attributes()) == {
+        ("Beam", "BeamAngle"),
+        ("Beam", "FieldAngle"),
+    }
     assert picker.section_item("Physical Properties").isHidden() is True
     assert picker.section_item("Extra Category").isHidden() is True
     assert picker.checked_attributes() == before
