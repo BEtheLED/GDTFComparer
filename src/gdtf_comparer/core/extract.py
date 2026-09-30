@@ -17,6 +17,15 @@ core.models.AttributeKey. Two different cardinalities are covered here
   its own three rows -- none is dropped, merged, or aggregated (RESEARCH
   Pitfall 3: Weight is one fixture-level scalar, Width/Height/Length are N
   per-model values, and both cardinalities are represented explicitly).
+- DMX attribute definitions are per-Attribute entry: every
+  fixture_type.attributes entry (the flat <AttributeDefinitions><Attributes>
+  vocabulary -- Pan, Tilt, Dimmer, Gobo1, and so on; DMX modes/channels are
+  out of scope, Plan 02-02) contributes its own six
+  ATTRIBUTE_DEFINITION_PROPERTIES keys under "DMX: <feature group>"
+  (dmx_attribute_category), keyed by that definition's Name (or a positional
+  "(unnamed attribute N)" label). The prefix guarantees a file-supplied
+  feature-group or attribute name can never collide with, merge into, or
+  silently default-check CATEGORY_BEAM/CATEGORY_PHYSICAL.
 
 Duplicate or missing element names never overwrite each other: a repeated
 path gets a "#N" suffix (_unique_path) and an unnamed geometry gets the
@@ -41,13 +50,15 @@ is read from the correct paired element; any divergence raises
 DescriptionMismatchError rather than guessing (fail closed, T-01-23).
 """
 
-from typing import Any, Dict, Iterator, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 from xml.etree.ElementTree import Element
 
 from gdtf_comparer.core.models import (
     CATEGORY_BEAM,
     CATEGORY_PHYSICAL,
+    DMX_ATTRIBUTE_CATEGORY_PREFIX,
     FIXTURE_LEVEL_PATH,
+    UNGROUPED_FEATURE_GROUP,
     AttributeKey,
     AttributeValue,
 )
@@ -82,6 +93,45 @@ MODEL_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
     ("Width", "width"),
     ("Height", "height"),
     ("Length", "length"),
+)
+
+# (XML attribute name, pygdtf field name, value transform) triple used by the
+# DMX attribute-definition presence check (_declared_values).
+AttributeSpec = Tuple[str, str, Callable[[Any], AttributeValue]]
+
+
+def _as_float(raw: Any) -> AttributeValue:
+    """Return raw as a float."""
+    return float(raw)
+
+
+def _enum_value(raw: Any) -> AttributeValue:
+    """Return a pygdtf Enum-like value's validated text (its .value)."""
+    return raw.value
+
+
+def _link_text(raw: Any) -> AttributeValue:
+    """Return a pygdtf NodeLink's raw link text.
+
+    Never use str() on a NodeLink here -- an omitted link's str() is the
+    four-letter word "None" (RESEARCH.md, Design notes), which would read as
+    a declared value instead of the correct N/A.
+    """
+    return raw.str_link
+
+
+def _as_text(raw: Any) -> AttributeValue:
+    """Return raw as plain text (str(raw)) -- used for Pretty and Color."""
+    return str(raw)
+
+
+ATTRIBUTE_DEFINITION_PROPERTIES: Tuple[AttributeSpec, ...] = (
+    ("Pretty", "pretty", _as_text),
+    ("Feature", "feature", _link_text),
+    ("ActivationGroup", "activation_group", _link_text),
+    ("MainAttribute", "main_attribute", _link_text),
+    ("PhysicalUnit", "physical_unit", _enum_value),
+    ("Color", "color", _as_text),
 )
 
 PATH_SEPARATOR = "/"
@@ -226,6 +276,77 @@ def _weight_declared(fixture_type_element: Element) -> bool:
     return "Value" in weight_element.attrib
 
 
+def _declared_values(
+    node: Any, element: Element, specs: Sequence[AttributeSpec]
+) -> Iterator[Tuple[str, AttributeValue]]:
+    """Apply the declared-vs-default presence check uniformly (Plan 01-06).
+
+    This is the single presence-check path every displayed attribute in this
+    module goes through: presence is read from the validated XML element
+    (element.attrib), and the value is read from pygdtf (node) -- so a
+    pygdtf default or placeholder is never reported as declared.
+
+    Parameters:
+        node: The pygdtf object instance carrying the parsed fields.
+        element: node's paired XML element from the validated tree.
+        specs: (gdtf_xml_name, pygdtf_field_name, value_transform) triples,
+            in the order rows should be produced.
+
+    Yields:
+        (gdtf_xml_name, value) pairs, one per spec, in spec order. value is
+        None when gdtf_xml_name is not in element.attrib, or when the raw
+        pygdtf field itself is None; otherwise transform(raw pygdtf value).
+    """
+    for gdtf_name, field_name, transform in specs:
+        if gdtf_name not in element.attrib:
+            yield gdtf_name, None
+            continue
+        raw_value = getattr(node, field_name, None)
+        yield gdtf_name, (transform(raw_value) if raw_value is not None else None)
+
+
+def dmx_attribute_category(feature_link: Optional[str]) -> str:
+    """Return the picker section a DMX attribute definition belongs to (D-01).
+
+    Parameters:
+        feature_link: The definition's Feature link text (its
+            "<FeatureGroup>.<Feature>" string), or None.
+
+    Returns:
+        DMX_ATTRIBUTE_CATEGORY_PREFIX plus the text before feature_link's
+        first ".", stripped, or plus UNGROUPED_FEATURE_GROUP when that text
+        is missing or blank. The prefix guarantees this can never collide
+        with CATEGORY_BEAM, CATEGORY_PHYSICAL, or any other legacy category
+        (assumption_delta_decision, 02-02-PLAN.md).
+    """
+    group = (feature_link or "").split(".", 1)[0].strip()
+    return DMX_ATTRIBUTE_CATEGORY_PREFIX + (group or UNGROUPED_FEATURE_GROUP)
+
+
+def _attribute_definition_elements(fixture_type_element: Element) -> List[Element]:
+    """Return the <Attribute> elements declared under AttributeDefinitions.
+
+    Mirrors pygdtf's own lookup chain exactly (FixtureType._read_xml): a
+    first-match find of AttributeDefinitions, then of Attributes, then
+    findall("Attribute").
+
+    Parameters:
+        fixture_type_element: The <FixtureType> element from the validated
+            description.xml tree.
+
+    Returns:
+        The <Attribute> elements in document order, or [] when either
+        container is missing.
+    """
+    definitions_element = fixture_type_element.find("AttributeDefinitions")
+    if definitions_element is None:
+        return []
+    attributes_element = definitions_element.find("Attributes")
+    if attributes_element is None:
+        return []
+    return attributes_element.findall("Attribute")
+
+
 def extract_attributes(
     fixture_type: Any, description_root: Element
 ) -> Dict[AttributeKey, AttributeValue]:
@@ -244,7 +365,15 @@ def extract_attributes(
         Weight key; six BEAM_ATTRIBUTES keys per GeometryBeam node found by
         iter_geometry_paths, namespaced by that beam's unique element path;
         three MODEL_ATTRIBUTES keys per fixture_type.models entry, namespaced
-        by that model's unique name (or a positional unnamed-model label).
+        by that model's unique name (or a positional unnamed-model label);
+        and, per <AttributeDefinitions><Attributes><Attribute> entry, six
+        ATTRIBUTE_DEFINITION_PROPERTIES keys under
+        "DMX: <feature group>" (dmx_attribute_category), namespaced by that
+        definition's unique Name (or a positional unnamed-attribute label).
+        Only the flat AttributeDefinitions vocabulary is read here -- DMX
+        modes, channels, logical channels, channel functions and channel
+        sets are out of scope for this extraction (assumption_delta_decision,
+        02-02-PLAN.md).
         A key's value is None when the attribute was not declared in this
         file, even if pygdtf's object model carries a GDTF-spec-default
         substitute for it; declared values (including ones equal to the
@@ -253,7 +382,7 @@ def extract_attributes(
     Raises:
         DescriptionMismatchError: description_root has no FixtureType
             element, or the validated tree cannot be paired element-for-
-            element with pygdtf's parsed model.
+            element with pygdtf's parsed model or attribute definitions.
     """
     fixture_type_element = description_root.find("FixtureType")
     if fixture_type_element is None:
@@ -309,5 +438,23 @@ def extract_attributes(
                 raw_value = getattr(model, field_name, None)
                 value = float(raw_value) if raw_value is not None else None
             attributes[AttributeKey(CATEGORY_PHYSICAL, element_path, gdtf_name)] = value
+
+    raw_definitions = _attribute_definition_elements(fixture_type_element)
+    definitions = list(getattr(fixture_type, "attributes", None) or [])
+    if len(definitions) != len(raw_definitions):
+        raise DescriptionMismatchError(
+            "the validated description.xml tree's attribute definitions do "
+            "not match pygdtf's parsed attribute definitions."
+        )
+
+    definition_names: Set[str] = set()
+    for index, (definition, element) in enumerate(zip(definitions, raw_definitions), start=1):
+        name = getattr(definition, "name", None) or f"(unnamed attribute {index})"
+        attribute_name = _unique_path(name, definition_names)
+        values = list(_declared_values(definition, element, ATTRIBUTE_DEFINITION_PROPERTIES))
+        feature = dict(values)["Feature"]
+        category = dmx_attribute_category(feature if isinstance(feature, str) else None)
+        for property_name, value in values:
+            attributes[AttributeKey(category, property_name, attribute_name)] = value
 
     return attributes

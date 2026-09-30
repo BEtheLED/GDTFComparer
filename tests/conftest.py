@@ -19,6 +19,7 @@ def build_description_xml(
     weight: Optional[float],
     models_xml: str,
     geometries_xml: str,
+    attributes_xml: str = "",
 ) -> str:
     """Build a minimal but well-formed GDTF 1.2 description.xml document.
 
@@ -29,6 +30,8 @@ def build_description_xml(
             omitted entirely from PhysicalDescriptions/Properties.
         models_xml: Raw XML inserted verbatim inside <Models>.
         geometries_xml: Raw XML inserted verbatim inside <Geometries>.
+        attributes_xml: Raw XML inserted verbatim inside
+            AttributeDefinitions/Attributes.
 
     Returns:
         A UTF-8 XML document string representing a full GDTF FixtureType.
@@ -56,7 +59,7 @@ def build_description_xml(
         "    <AttributeDefinitions>\n"
         "      <ActivationGroups/>\n"
         "      <FeatureGroups/>\n"
-        "      <Attributes/>\n"
+        f"      <Attributes>{attributes_xml}</Attributes>\n"
         "    </AttributeDefinitions>\n"
         "    <Wheels/>\n"
         "    <PhysicalDescriptions>\n"
@@ -94,6 +97,7 @@ def make_gdtf(tmp_path):
         weight: Optional[float] = 10.0,
         models_xml: str = "",
         geometries_xml: str = "",
+        attributes_xml: str = "",
         description: Optional[object] = None,
         include_description: bool = True,
         extra_members: Optional[Mapping[str, bytes]] = None,
@@ -111,6 +115,8 @@ def make_gdtf(tmp_path):
             models_xml: Raw <Models> inner XML for the default description.
             geometries_xml: Raw <Geometries> inner XML for the default
                 description.
+            attributes_xml: Raw XML inserted verbatim inside
+                AttributeDefinitions/Attributes for the default description.
             description: Explicit description.xml content (str or bytes).
                 When provided, overrides the generated document entirely.
             include_description: When False, no description.xml member is
@@ -129,6 +135,7 @@ def make_gdtf(tmp_path):
                 weight=weight,
                 models_xml=models_xml,
                 geometries_xml=geometries_xml,
+                attributes_xml=attributes_xml,
             ).encode("utf-8")
         elif isinstance(description, bytes):
             description_content = description

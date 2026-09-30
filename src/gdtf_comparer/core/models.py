@@ -29,6 +29,18 @@ LEADING_CATEGORIES: tuple = (CATEGORY_BEAM, CATEGORY_PHYSICAL)
 # core to filter or order rows -- selection is GUI-layer state only.
 DEFAULT_SELECTED_CATEGORIES: tuple = (CATEGORY_BEAM, CATEGORY_PHYSICAL)
 
+# Every category built from a GDTF <AttributeDefinitions><Attributes> entry's
+# feature group starts with this prefix (core.extract.dmx_attribute_category).
+# No legacy or DEFAULT_SELECTED_CATEGORIES category starts with it, so a
+# file-supplied feature-group name (e.g. GDTF's standard "Beam" group) can
+# never collide with, merge into, or default-check the legacy sections
+# (assumption_delta_decision, 02-02-PLAN.md).
+DMX_ATTRIBUTE_CATEGORY_PREFIX = "DMX: "
+
+# Label used in place of a definition's feature group when that group cannot
+# be determined (missing, empty, or dot-leading Feature link).
+UNGROUPED_FEATURE_GROUP = "(no feature group)"
+
 FIXTURE_LEVEL_PATH = ""
 
 
@@ -40,8 +52,12 @@ class AttributeKey:
         category: Display category produced by core.extract (any string;
             the attribute picker groups by it).
         element_path: Full path to the owning element (e.g. a geometry path
-            or a model name), or FIXTURE_LEVEL_PATH for fixture-level values.
-        attribute: The GDTF attribute name (e.g. "Weight", "BeamAngle").
+            or a model name), or FIXTURE_LEVEL_PATH for fixture-level
+            values, or, for a DMX attribute definition, the name of the
+            definition property this row compares (Pretty, Feature,
+            ActivationGroup, MainAttribute, PhysicalUnit or Color).
+        attribute: The GDTF attribute name (e.g. "Weight", "BeamAngle", or
+            a DMX attribute definition's Name such as "Pan").
     """
 
     category: str
@@ -73,6 +89,8 @@ class FixtureModel:
             defaults that pygdtf substitutes for an omitted attribute are
             never reported here as if they were declared values (Plan
             01-06; closes 01-VERIFICATION.md Truth 6 / 01-REVIEW.md CR-01).
+            Also includes one key per property of every
+            AttributeDefinitions entry (Plan 02-02).
         fixture_type: The full pygdtf FixtureType object model retained
             verbatim (D-09), exposing .geometries, .dmx_modes, .wheels,
             .models and .properties for later phases. Excluded from repr
