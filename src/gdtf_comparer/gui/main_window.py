@@ -9,7 +9,7 @@ import logging
 import os
 from typing import List, Optional, Sequence
 
-from PySide6.QtCore import QThread, Qt
+from PySide6.QtCore import QThread, Qt, Slot
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -41,7 +41,7 @@ from gdtf_comparer.gui.table_model import (
     DifferencesOnlyProxyModel,
     UppercaseHeaderProxyModel,
 )
-from gdtf_comparer.gui.theme import current_theme_name, diff_highlight_color
+from gdtf_comparer.gui.theme import current_theme_name, diff_highlight_color, theme_for_scheme
 from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
@@ -234,7 +234,30 @@ class MainWindow(QMainWindow):
         self.content_splitter.setSizes([260, 1020])
         layout.addWidget(self.content_splitter)
 
+        # Live OS light/dark switch re-tints the table without a re-run
+        # (DIFF-01, Phase 2 D-05, Task 3).
+        style_hints = QApplication.instance().styleHints()
+        style_hints.colorSchemeChanged.connect(self._on_color_scheme_changed)
+
         self.statusBar().showMessage("Ready")
+
+    @Slot(Qt.ColorScheme)
+    def _on_color_scheme_changed(self, scheme) -> None:
+        """Re-tint the table's diff highlight when the OS color scheme changes.
+
+        Parameters:
+            scheme: The new Qt.ColorScheme reported by
+                QApplication.styleHints().colorSchemeChanged.
+
+        Derives the theme name from scheme itself via theme_for_scheme -- the
+        same mapping gui.theme.OsThemeFollower applies -- rather than reading
+        THEME_PROPERTY, so the tint is right whichever slot Qt runs first.
+        Decorated with @Slot so Qt drops the connection when this window is
+        destroyed (same pattern as OsThemeFollower.on_color_scheme_changed).
+        Never re-runs the comparison or touches the ComparisonResult
+        (prohibition 1, 02-03-PLAN.md).
+        """
+        self._apply_highlight_theme(theme_for_scheme(scheme))
 
     def select_target_file(self) -> None:
         """Open a file dialog to pick the target GDTF file."""
