@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Attribute Browsing & Diff Highlighting
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-09-30T12:10:30.461Z"
-last_activity: 2026-09-29
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
-state_head: 780a7274dd6f416aede5c70e9a29468d766f51bf
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-09-30T12:28:42.617Z"
+last_activity: 2026-09-30
+last_activity_desc: Phase 02 execution started
+state_head: aef14ecbd10d09330ead23d3bc1b2cacf3c2f611
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 12
-  completed_plans: 9
+  completed_plans: 10
   percent: 20
 ---
 
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-25)
 
 **Core value:** You can pick a target GDTF file and any number of comparison files and immediately see which fixture attributes actually differ — without needing Python, dependencies, or command-line knowledge to run the tool.
-**Current focus:** Phase 01 — Foundation Rebuild
+**Current focus:** Phase 02 — Attribute Browsing & Diff Highlighting
 
 ## Current Position
 
-Phase: 02 (Attribute Browsing & Diff Highlighting) — READY TO EXECUTE
-Plan: Not started
+Phase: 02 (Attribute Browsing & Diff Highlighting) — EXECUTING
+Plan: 2 of 3
 Status: Ready to execute
-Last activity: 2026-09-29 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-09-30 — Phase 02 execution started
 
 Progress: [██░░░░░░░░] 20%
 
@@ -54,6 +54,11 @@ Progress: [██░░░░░░░░] 20%
 - Trend: -
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 02 P01 | 14 | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -65,6 +70,8 @@ Recent decisions affecting current work:
 - Milestone: Rebuild UI + spec-correct parsing (`pygdtf`/`pymvr`) + MVR-xchange networking in one milestone, not a polish-only pass.
 - Milestone: MVR-xchange wire protocol reimplemented from the public spec, not ported from BlenderDMX's GPLv3 reference code.
 - Roadmap: MVR-xchange networking (Phase 5) sequenced last, after core parsing/UI/comparison work (Phases 1-3) and packaging (Phase 4) are stable — explicit user decision during research review.
+- [Phase 02]: Split DISPLAY_CATEGORIES into LEADING_CATEGORIES (compare() row-order anchor) and DEFAULT_SELECTED_CATEGORIES (picker's D-04 first-use seed) so they can never silently drift together
+- [Phase 02]: Attribute selection state lives entirely in the GUI layer (AttributePicker); core.comparator.compare() stays a pure, selection-unaware function
 
 ### Pending Todos
 
@@ -85,6 +92,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-29T23:20:06.247Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-attribute-browsing-diff-highlighting/02-CONTEXT.md
+Last session: 2026-09-30T12:28:42.587Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None
