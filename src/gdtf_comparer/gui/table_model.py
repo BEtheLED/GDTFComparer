@@ -10,6 +10,8 @@ from PySide6.QtCore import (
     QSortFilterProxyModel,
     Qt,
 )
+from PySide6.QtGui import QBrush, QColor
+from PySide6.QtWidgets import QStyledItemDelegate
 
 from gdtf_comparer.core.models import ComparisonResult, format_value
 
@@ -17,6 +19,12 @@ from gdtf_comparer.core.models import ComparisonResult, format_value
 # rows without ever calling sourceModel().result() -- works at any position
 # in a proxy chain (D-03; Design notes, 02-01-PLAN.md).
 SELECTION_KEY_ROLE = Qt.ItemDataRole.UserRole + 1
+
+# Custom data role publishing ComparisonRow.any_differs, read by
+# DifferencesOnlyProxyModel's filterAcceptsRow (Phase 2 D-06) the same way
+# SELECTION_KEY_ROLE is read by AttributeSelectionProxyModel -- a proxy never
+# calls sourceModel().result() directly.
+ANY_DIFFERS_ROLE = Qt.ItemDataRole.UserRole + 2
 
 
 def _value_column_labels(result: Optional[ComparisonResult]) -> Tuple[str, ...]:
@@ -73,6 +81,7 @@ class ComparisonTableModel(QAbstractTableModel):
         super().__init__(parent)
         self._result: Optional[ComparisonResult] = None
         self._value_labels: Tuple[str, ...] = ()
+        self._highlight_brush: Optional[QBrush] = None
 
     def set_result(self, result: Optional[ComparisonResult]) -> None:
         """Replace the displayed result, resetting the model.
@@ -89,6 +98,31 @@ class ComparisonTableModel(QAbstractTableModel):
         """Return the currently displayed ComparisonResult, or None."""
         return self._result
 
+    def set_highlight_color(self, color: Optional[QColor]) -> None:
+        """Set (or clear) the diff-highlight tint color (Phase 2 D-05).
+
+        Parameters:
+            color: The QColor to tint a differing comparison cell's
+                BackgroundRole with, or None to clear highlighting entirely.
+
+        Emits dataChanged for BackgroundRole over the value-column cells only
+        (never the fixed Category/Element/Attribute/Target columns), so the
+        view repaints just the cells that can ever be tinted.
+        """
+        self._highlight_brush = QBrush(QColor(color)) if color is not None else None
+        if self.rowCount() > 0 and self.columnCount() > self.COL_TARGET + 1:
+            self.dataChanged.emit(
+                self.index(0, self.COL_TARGET + 1),
+                self.index(self.rowCount() - 1, self.columnCount() - 1),
+                [Qt.ItemDataRole.BackgroundRole],
+            )
+
+    def highlight_color(self) -> Optional[QColor]:
+        """Return a copy of the current diff-highlight tint color, or None."""
+        if self._highlight_brush is None:
+            return None
+        return QColor(self._highlight_brush.color())
+
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """Return the number of comparison rows (0 for a valid parent or no result)."""
         if parent.isValid() or self._result is None:
@@ -104,7 +138,7 @@ class ComparisonTableModel(QAbstractTableModel):
         return 4 + len(self._result.comparisons)
 
     def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        """Return display/tooltip data for a cell."""
+        """Return display, tooltip and diff-highlight data for a cell."""
         if not index.isValid() or self._result is None:
             return None
 
@@ -119,6 +153,26 @@ class ComparisonTableModel(QAbstractTableModel):
             return self._display_value(row, column)
         if role == SELECTION_KEY_ROLE:
             return (row.key.category, row.key.attribute)
+        if role == ANY_DIFFERS_ROLE:
+            return row.any_differs
+        if role == Qt.ItemDataRole.BackgroundRole:
+            return self._background(row, column)
+        return None
+
+    def _background(self, row, column: int) -> Optional[QBrush]:
+        """Return the diff-highlight brush for one cell, or None.
+
+        Reads only ComparisonRow.differs (never display text, prohibition 1
+        of 02-03-PLAN.md): a comparison-value column (column > COL_TARGET)
+        whose corresponding differs flag is True gets the current highlight
+        brush; the Target column, the fixed Category/Element/Attribute
+        columns, and any equal or out-of-range comparison column get None.
+        """
+        if self._highlight_brush is None or column <= self.COL_TARGET:
+            return None
+        comparison_index = column - self.COL_TARGET - 1
+        if 0 <= comparison_index < len(row.differs) and row.differs[comparison_index]:
+            return self._highlight_brush
         return None
 
     def _display_value(self, row, column: int) -> Any:
@@ -262,6 +316,27 @@ class AttributeSelectionProxyModel(QSortFilterProxyModel):
         """Accept a source row only when its selection key is checked."""
         key = self.sourceModel().index(source_row, 0, source_parent).data(SELECTION_KEY_ROLE)
         return key is not None and tuple(key) in self._selected
+
+
+class BackgroundBrushDelegate(QStyledItemDelegate):
+    """Paints a cell's BackgroundRole brush before Qt's own item painting.
+
+    Measured at planning time (02-03-PLAN.md Design notes): once qt-material's
+    stylesheet is applied, its ``QTableView::item`` rule (padding, min-height,
+    a transparent border-color) makes Qt's stylesheet style draw the item
+    itself and ignore the item's own BackgroundRole brush -- a cell whose
+    data() answers BackgroundRole with a colored QBrush paints identically to
+    an unhighlighted neighbor under qt-material with no delegate. This
+    delegate only adds that fill; sizing, text and selection painting remain
+    entirely Qt's own via the super().paint() call.
+    """
+
+    def paint(self, painter, option, index) -> None:
+        """Fill option.rect with the index's BackgroundRole brush, then paint normally."""
+        brush = index.data(Qt.ItemDataRole.BackgroundRole)
+        if brush is not None:
+            painter.fillRect(option.rect, brush)
+        super().paint(painter, option, index)
 
 
 class UppercaseHeaderProxyModel(QIdentityProxyModel):

@@ -12,6 +12,7 @@ from typing import List, Optional, Sequence
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -34,9 +35,11 @@ from gdtf_comparer.core.models import ComparisonResult
 from gdtf_comparer.gui.attribute_picker import AttributePicker
 from gdtf_comparer.gui.table_model import (
     AttributeSelectionProxyModel,
+    BackgroundBrushDelegate,
     ComparisonTableModel,
     UppercaseHeaderProxyModel,
 )
+from gdtf_comparer.gui.theme import current_theme_name, diff_highlight_color
 from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
@@ -164,6 +167,13 @@ class MainWindow(QMainWindow):
         self.table_view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table_view.verticalHeader().setVisible(False)
         self.table_view.horizontalHeader().setStretchLastSection(True)
+        # Diff-highlight tint (DIFF-01, Phase 2 D-05): the delegate paints
+        # each cell's BackgroundRole brush, which qt-material's own
+        # QTableView::item rule otherwise suppresses (Design notes,
+        # 02-03-PLAN.md).
+        self.table_delegate = BackgroundBrushDelegate(self.table_view)
+        self.table_view.setItemDelegate(self.table_delegate)
+        self._apply_highlight_theme(current_theme_name(QApplication.instance()))
         # QHeaderView does not elide by default (ElideNone). GDTF file names
         # end with the revision (e.g. "...@V2.gdtf" / "...@V3.gdtf"), so
         # middle elision keeps that distinguishing ending visible when a
@@ -345,6 +355,18 @@ class MainWindow(QMainWindow):
         self.table_model.set_result(result)
         self.attribute_picker.set_catalog(attribute_catalog(result))
         self._apply_attribute_selection()
+
+    def _apply_highlight_theme(self, theme_name: str) -> None:
+        """Set the table's diff-highlight tint from a qt-material theme name.
+
+        Parameters:
+            theme_name: A qt-material theme file name (e.g. "dark_blue.xml").
+
+        The only place the table's highlight color is set (DIFF-01, Phase 2
+        D-05): runs once per theme (at construction and on a live OS
+        light/dark switch, Task 3), never per painted cell.
+        """
+        self.table_model.set_highlight_color(diff_highlight_color(theme_name))
 
     def _apply_attribute_selection(self) -> None:
         """Push the picker's checked set into the selection proxy and refit.
