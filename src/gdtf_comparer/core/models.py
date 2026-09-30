@@ -16,7 +16,19 @@ AttributeValue = Union[float, int, str, None]
 
 CATEGORY_BEAM = "Beam"
 CATEGORY_PHYSICAL = "Physical Properties"
-DISPLAY_CATEGORIES: tuple = (CATEGORY_BEAM, CATEGORY_PHYSICAL)
+
+# Row-order anchor for core.comparator.compare (D-10 legacy order): these
+# categories are always sorted first, in this order, ahead of every other
+# category (which falls back to first-seen order). Never used to filter rows
+# -- compare() returns every category it is given (ATTR-01/ATTR-02).
+LEADING_CATEGORIES: tuple = (CATEGORY_BEAM, CATEGORY_PHYSICAL)
+
+# D-04 first-use seed for gui.attribute_picker.AttributePicker: on first use
+# (no prior selection), every attribute whose category is in this tuple
+# starts checked, and every other attribute starts unchecked. Never used by
+# core to filter or order rows -- selection is GUI-layer state only.
+DEFAULT_SELECTED_CATEGORIES: tuple = (CATEGORY_BEAM, CATEGORY_PHYSICAL)
+
 FIXTURE_LEVEL_PATH = ""
 
 
@@ -25,7 +37,8 @@ class AttributeKey:
     """Namespaced identity of a single comparable attribute value.
 
     Parameters:
-        category: Display category, one of DISPLAY_CATEGORIES.
+        category: Display category produced by core.extract (any string;
+            the attribute picker groups by it).
         element_path: Full path to the owning element (e.g. a geometry path
             or a model name), or FIXTURE_LEVEL_PATH for fixture-level values.
         attribute: The GDTF attribute name (e.g. "Weight", "BeamAngle").
@@ -52,8 +65,8 @@ class FixtureModel:
         name: The fixture's display name.
         manufacturer: The fixture's manufacturer name.
         attributes: The namespaced display projection of this fixture's
-            attributes for the Phase-1 categories (D-10/D-11) -- keyed by
-            AttributeKey, not by bare attribute name. A None value means the
+            attributes (D-11) -- keyed by AttributeKey, not by bare
+            attribute name. A None value means the
             attribute is not declared for that element in this file: either
             the owning element is absent, or the manufacturer's
             description.xml does not declare that attribute. GDTF-spec

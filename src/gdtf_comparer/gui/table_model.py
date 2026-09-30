@@ -1,11 +1,22 @@
 """QAbstractTableModel presenting a ComparisonResult (D-13 -> presentation)."""
 
 from collections import Counter
-from typing import Any, Optional, Tuple
+from typing import AbstractSet, Any, FrozenSet, Optional, Tuple
 
-from PySide6.QtCore import QAbstractTableModel, QIdentityProxyModel, QModelIndex, Qt
+from PySide6.QtCore import (
+    QAbstractTableModel,
+    QIdentityProxyModel,
+    QModelIndex,
+    QSortFilterProxyModel,
+    Qt,
+)
 
 from gdtf_comparer.core.models import ComparisonResult, format_value
+
+# Custom data role a source model publishes so a view-only proxy can filter
+# rows without ever calling sourceModel().result() -- works at any position
+# in a proxy chain (D-03; Design notes, 02-01-PLAN.md).
+SELECTION_KEY_ROLE = Qt.ItemDataRole.UserRole + 1
 
 
 def _value_column_labels(result: Optional[ComparisonResult]) -> Tuple[str, ...]:
@@ -106,6 +117,8 @@ class ComparisonTableModel(QAbstractTableModel):
             if column == self.COL_ELEMENT:
                 return row.key.element_path
             return self._display_value(row, column)
+        if role == SELECTION_KEY_ROLE:
+            return (row.key.category, row.key.attribute)
         return None
 
     def _display_value(self, row, column: int) -> Any:
@@ -210,6 +223,45 @@ class ComparisonTableModel(QAbstractTableModel):
             ):
                 return index
         return -1
+
+
+class AttributeSelectionProxyModel(QSortFilterProxyModel):
+    """View-only proxy that shows only checked (category, attribute) rows.
+
+    D-03: the checked set (from gui.attribute_picker.AttributePicker) is the
+    single source of truth for which rows appear; this proxy never modifies
+    the source model or the ComparisonResult it presents. It reads the row's
+    identity through SELECTION_KEY_ROLE rather than calling
+    sourceModel().result(), so it works at any position in a proxy chain
+    (Design notes, 02-01-PLAN.md). An empty selection hides every row.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._selected: FrozenSet[Tuple[str, str]] = frozenset()
+
+    def set_selected_attributes(self, pairs: AbstractSet[Tuple[str, str]]) -> None:
+        """Replace the checked (category, attribute) set and refilter.
+
+        Parameters:
+            pairs: The (category, attribute) pairs whose rows should show.
+
+        Uses beginFilterChange()/endFilterChange() rather than the single-
+        call invalidate*() methods, which raise DeprecationWarning under
+        PySide6 6.11.2 (Design notes, 02-01-PLAN.md).
+        """
+        self.beginFilterChange()
+        self._selected = frozenset(tuple(pair) for pair in pairs)
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
+    def selected_attributes(self) -> FrozenSet[Tuple[str, str]]:
+        """Return the currently checked (category, attribute) set."""
+        return self._selected
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        """Accept a source row only when its selection key is checked."""
+        key = self.sourceModel().index(source_row, 0, source_parent).data(SELECTION_KEY_ROLE)
+        return key is not None and tuple(key) in self._selected
 
 
 class UppercaseHeaderProxyModel(QIdentityProxyModel):

@@ -23,13 +23,20 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QSplitter,
     QTableView,
     QVBoxLayout,
     QWidget,
 )
 
+from gdtf_comparer.core.comparator import attribute_catalog
 from gdtf_comparer.core.models import ComparisonResult
-from gdtf_comparer.gui.table_model import ComparisonTableModel, UppercaseHeaderProxyModel
+from gdtf_comparer.gui.attribute_picker import AttributePicker
+from gdtf_comparer.gui.table_model import (
+    AttributeSelectionProxyModel,
+    ComparisonTableModel,
+    UppercaseHeaderProxyModel,
+)
 from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
@@ -48,11 +55,11 @@ CLOSE_WAIT_TIMEOUT_MS = 3000
 # "TARGET: " plus a typical fixture name at qt-material's 13 px Roboto
 # header font (same in both themes). When there isn't room for every value
 # column at this width -- i.e. more than a target plus one comparison at
-# the default 1000 px window -- _fit_columns_to_contents shrinks the cap
-# further so any number of comparison files still fits without a
-# horizontal scrollbar (WR-01), rather than only the single-comparison
-# case. Read at call time by _fit_columns_to_contents, not captured as a
-# default argument.
+# the default 1280 px window, with the 260 px Attributes side panel beside
+# the table (D-02) -- _fit_columns_to_contents shrinks the cap further so
+# any number of comparison files still fits without a horizontal scrollbar
+# (WR-01), rather than only the single-comparison case. Read at call time by
+# _fit_columns_to_contents, not captured as a default argument.
 MAX_COLUMN_WIDTH_PX = 280
 
 # Floor, in pixels, for the adaptive value-column cap in
@@ -88,7 +95,10 @@ class MainWindow(QMainWindow):
         self._worker: Optional[ComparisonWorker] = None
 
         self.setWindowTitle("GDTF Comparer")
-        self.resize(1000, 650)
+        # 1280x720 (up from 1000x650) keeps the table area beside the 260 px
+        # Attributes side panel (D-02) about 980 px wide -- the width Phase
+        # 1's no-horizontal-scrollbar tests were tuned for.
+        self.resize(1280, 720)
         self.create_widgets()
 
     def create_widgets(self) -> None:
@@ -138,8 +148,10 @@ class MainWindow(QMainWindow):
         layout.addLayout(run_row)
 
         self.table_model = ComparisonTableModel(central)
+        self.selection_proxy = AttributeSelectionProxyModel(central)
+        self.selection_proxy.setSourceModel(self.table_model)
         self.header_proxy = UppercaseHeaderProxyModel(central)
-        self.header_proxy.setSourceModel(self.table_model)
+        self.header_proxy.setSourceModel(self.selection_proxy)
         self.table_view = QTableView(central)
         self.table_view.setModel(self.header_proxy)
         self.table_view.setAlternatingRowColors(True)
@@ -151,7 +163,31 @@ class MainWindow(QMainWindow):
         # middle elision keeps that distinguishing ending visible when a
         # label is longer than its capped column width (G-01-2).
         self.table_view.horizontalHeader().setTextElideMode(Qt.TextElideMode.ElideMiddle)
-        layout.addWidget(self.table_view)
+
+        # Attributes side panel (D-01, D-02): always visible, never
+        # collapsed away. Plan 02-03 adds a "differences only" toggle row
+        # above the table inside results_panel.
+        self.attributes_group = QGroupBox("Attributes", central)
+        attributes_layout = QVBoxLayout(self.attributes_group)
+        self.attribute_picker = AttributePicker(self.attributes_group)
+        attributes_layout.addWidget(self.attribute_picker)
+        self.attributes_group.setMinimumWidth(220)
+        self.attribute_picker.selection_changed.connect(self._apply_attribute_selection)
+
+        self.results_panel = QWidget(central)
+        results_layout = QVBoxLayout(self.results_panel)
+        results_layout.setContentsMargins(0, 0, 0, 0)
+        results_layout.addWidget(self.table_view)
+
+        self.content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
+        self.content_splitter.addWidget(self.attributes_group)
+        self.content_splitter.addWidget(self.results_panel)
+        # D-02: the Attributes panel cannot be collapsed away by dragging.
+        self.content_splitter.setChildrenCollapsible(False)
+        self.content_splitter.setStretchFactor(0, 0)
+        self.content_splitter.setStretchFactor(1, 1)
+        self.content_splitter.setSizes([260, 1020])
+        layout.addWidget(self.content_splitter)
 
         self.statusBar().showMessage("Ready")
 
@@ -301,10 +337,22 @@ class MainWindow(QMainWindow):
             result: The ComparisonResult produced by the worker.
         """
         self.table_model.set_result(result)
-        self._fit_columns_to_contents()
+        self.attribute_picker.set_catalog(attribute_catalog(result))
+        self._apply_attribute_selection()
         self.statusBar().showMessage(
             f"Compared {len(result.comparisons)} file(s) against {result.target.file_name}"
         )
+
+    def _apply_attribute_selection(self) -> None:
+        """Push the picker's checked set into the selection proxy and refit.
+
+        Connected to AttributePicker.selection_changed, and also called
+        directly after on_comparison_ready seeds a fresh catalog (D-03: the
+        checked set is the only thing that decides which rows show).
+        """
+        self.selection_proxy.set_selected_attributes(self.attribute_picker.checked_attributes())
+        if self.table_model.result() is not None:
+            self._fit_columns_to_contents()
 
     def _fit_columns_to_contents(self) -> None:
         """Size columns to their contents, then cap each value column's width.

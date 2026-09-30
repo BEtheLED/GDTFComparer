@@ -5,10 +5,10 @@ is the one and only core service call the GUI makes (via gui/worker.py);
 never gets called with a Qt import anywhere on this side (D-16).
 """
 
-from typing import Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from gdtf_comparer.core.models import (
-    DISPLAY_CATEGORIES,
+    LEADING_CATEGORIES,
     ComparisonResult,
     ComparisonRow,
     FixtureModel,
@@ -26,23 +26,32 @@ def compare(target: FixtureModel, comparisons: Sequence[FixtureModel]) -> Compar
 
     Returns:
         A ComparisonResult whose rows cover every key present on the target
-        or any comparison (first-seen order, no duplicates) whose category
-        is one of DISPLAY_CATEGORIES (D-10), stable-sorted by category.
+        or any comparison, first-seen order, no duplicates; Beam then
+        Physical Properties first (LEADING_CATEGORIES), then every other
+        category in first-seen order. compare() never filters by category --
+        the GUI decides what is shown (ATTR-01, ATTR-02); this stays a pure,
+        selection-unaware function.
     """
     ordered_keys = []
     seen = set()
+    first_seen_index = {}
     for model in (target, *comparisons):
         for key in model.attributes:
-            if key.category not in DISPLAY_CATEGORIES:
-                continue
             if key in seen:
                 continue
             seen.add(key)
             ordered_keys.append(key)
+            if key.category not in first_seen_index:
+                first_seen_index[key.category] = len(first_seen_index)
+
+    def _sort_key(key):
+        if key.category in LEADING_CATEGORIES:
+            return (0, LEADING_CATEGORIES.index(key.category))
+        return (1, first_seen_index[key.category])
 
     # list.sort() is stable, so this only reorders by category while
     # preserving each key's first-seen relative order within that category.
-    ordered_keys.sort(key=lambda k: DISPLAY_CATEGORIES.index(k.category))
+    ordered_keys.sort(key=_sort_key)
 
     rows = []
     for key in ordered_keys:
@@ -84,3 +93,35 @@ def compare_files(
     target = repo.load(target_path)
     comparisons = [repo.load(path) for path in compare_paths]
     return compare(target, comparisons)
+
+
+def attribute_catalog(
+    result: ComparisonResult,
+) -> Tuple[Tuple[str, Tuple[str, ...]], ...]:
+    """Return the picker's (category, attribute-names) catalog for a result.
+
+    The selection unit for gui.attribute_picker.AttributePicker is
+    (category, attribute), never a full AttributeKey (Research Pattern 2):
+    a fixture with several geometry instances of the same beam still gets
+    one "BeamAngle" checkbox, not one per element path. This function
+    collapses result.rows down to that unit, one entry per distinct
+    attribute name within each category.
+
+    Parameters:
+        result: The ComparisonResult to build a catalog for.
+
+    Returns:
+        One (category, attribute_names) pair per category present in
+        result.rows, in the same category order as result.rows (Beam then
+        Physical Properties first, then every other category in first-seen
+        order -- see compare()). attribute_names lists each distinct
+        attribute name within that category, in first-appearance order,
+        deduplicated across every element path that declares it. An empty
+        tuple when result.rows is empty.
+    """
+    categories: Dict[str, List[str]] = {}
+    for row in result.rows:
+        names = categories.setdefault(row.key.category, [])
+        if row.key.attribute not in names:
+            names.append(row.key.attribute)
+    return tuple((category, tuple(names)) for category, names in categories.items())
