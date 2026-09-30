@@ -83,7 +83,7 @@ Plans:
   2. User can search/filter the attribute list and choose which attributes are included in a comparison.
   3. Values that differ between the target and any comparison file are visually highlighted in the comparison results.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -92,7 +92,7 @@ Plans:
 
 **Wave 2** *(blocked on 02-01)*
 
-- [ ] 02-02-PLAN.md — Full 60+ attribute set: extract every GDTF AttributeDefinitions entry into "DMX: <feature group>" picker sections (unchecked by default) via one shared presence-check helper; DMX modes/channels out of scope (ATTR-01) (wave 2)
+- [x] 02-02-PLAN.md — Full 60+ attribute set: extract every GDTF AttributeDefinitions entry into "DMX: <feature group>" picker sections (unchecked by default) via one shared presence-check helper; DMX modes/channels out of scope (ATTR-01) (wave 2)
 
 **Wave 3** *(blocked on 02-01 and 02-02)*
 
@@ -149,7 +149,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
-| 2. Attribute Browsing & Diff Highlighting | 1/3 | In Progress|  |
+| 2. Attribute Browsing & Diff Highlighting | 2/3 | In Progress|  |
 | 3. Compare Profiles & Export | 0/TBD | Not started | - |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |

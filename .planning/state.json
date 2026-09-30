@@ -11,7 +11,7 @@
     {
       "number": "2",
       "name": "Attribute Browsing & Diff Highlighting",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "3",
@@ -34,5 +34,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 02 of 5 · 20% · executing"
   },
-  "updated_at": "2026-09-30T12:28:36.425Z"
+  "updated_at": "2026-09-30T16:08:05.648Z"
 }

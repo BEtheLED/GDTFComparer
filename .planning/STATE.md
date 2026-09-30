@@ -3,16 +3,16 @@ gsd_state_version: "1.0"
 current_phase: 02
 current_phase_name: Attribute Browsing & Diff Highlighting
 status: executing
-stopped_at: Completed 02-01-PLAN.md
-last_updated: "2026-09-30T12:28:42.617Z"
+stopped_at: Completed 02-02-PLAN.md
+last_updated: "2026-09-30T16:08:12.098Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 02 execution started
-state_head: aef14ecbd10d09330ead23d3bc1b2cacf3c2f611
+state_head: 857a54babeaf6225ebb1890b946a5ec4ebbb7684
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 12
-  completed_plans: 10
+  completed_plans: 11
   percent: 20
 ---
 
@@ -28,7 +28,7 @@ See: .planning/PROJECT.md (updated 2026-09-25)
 ## Current Position
 
 Phase: 02 (Attribute Browsing & Diff Highlighting) — EXECUTING
-Plan: 2 of 3
+Plan: 3 of 3
 Status: Ready to execute
 Last activity: 2026-09-30 — Phase 02 execution started
 
@@ -59,6 +59,7 @@ Progress: [██░░░░░░░░] 20%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 02 P01 | 14 | 2 tasks | 8 files |
+| Phase 02 P02 | ~15min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -72,6 +73,8 @@ Recent decisions affecting current work:
 - Roadmap: MVR-xchange networking (Phase 5) sequenced last, after core parsing/UI/comparison work (Phases 1-3) and packaging (Phase 4) are stable — explicit user decision during research review.
 - [Phase 02]: Split DISPLAY_CATEGORIES into LEADING_CATEGORIES (compare() row-order anchor) and DEFAULT_SELECTED_CATEGORIES (picker's D-04 first-use seed) so they can never silently drift together
 - [Phase 02]: Attribute selection state lives entirely in the GUI layer (AttributePicker); core.comparator.compare() stays a pure, selection-unaware function
+- [Phase 02]: [Phase 02] DMX attribute definitions become one (category, attribute) picker entry each: category is 'DMX: ' + the Feature link's group, attribute is the definition's Name, with a fixed collision-proof prefix so a file-supplied name can never land in or default-check the legacy Beam/Physical Properties categories
+- [Phase 02]: [Phase 02] Beam and Model attribute extraction were converted to route through the same shared presence-check helper (_declared_values) as the new DMX attribute-definition extraction, removing a hand-written per-category presence loop
 
 ### Pending Todos
 
@@ -92,6 +95,6 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-09-30T12:28:42.587Z
-Stopped at: Completed 02-01-PLAN.md
+Last session: 2026-09-30T16:08:12.077Z
+Stopped at: Completed 02-02-PLAN.md
 Resume file: None
