@@ -83,7 +83,20 @@ Plans:
   2. User can search/filter the attribute list and choose which attributes are included in a comparison.
   3. Values that differ between the target and any comparison file are visually highlighted in the comparison results.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Tracer: category-agnostic compare() + always-visible Attributes side panel (collapsible category sections, per-attribute checkboxes, search narrows visibility only) filtering the table through an attribute-selection proxy; D-04 default = Beam + Physical Properties (ATTR-01, ATTR-02) (wave 1)
+
+**Wave 2** *(blocked on 02-01)*
+
+- [ ] 02-02-PLAN.md — Full 60+ attribute set: extract every GDTF AttributeDefinitions entry into "DMX: <feature group>" picker sections (unchecked by default) via one shared presence-check helper; DMX modes/channels out of scope (ATTR-01) (wave 2)
+
+**Wave 3** *(blocked on 02-01 and 02-02)*
+
+- [ ] 02-03-PLAN.md — DIFF-01: theme-aware tint on each differing comparison cell (delegate-painted, since qt-material suppresses BackgroundRole), live light/dark re-tint, and a "Show differences only" toggle proxy with an empty-result status message (wave 3)
 
 ### Phase 3: Compare Profiles & Export
 
@@ -136,7 +149,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
-| 2. Attribute Browsing & Diff Highlighting | 0/TBD | Not started | - |
+| 2. Attribute Browsing & Diff Highlighting | 0/3 | Planned | - |
 | 3. Compare Profiles & Export | 0/TBD | Not started | - |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
