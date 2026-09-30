@@ -1,0 +1,38 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": null,
+  "phases": [
+    {
+      "number": "1",
+      "name": "Foundation Rebuild",
+      "status": "complete"
+    },
+    {
+      "number": "2",
+      "name": "Attribute Browsing & Diff Highlighting",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Compare Profiles & Export",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Standalone Packaging",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "MVR-xchange Networking",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step (plan phase 2)",
+    "reason": "Phase 2 of 5 — needs a plan"
+  },
+  "updated_at": "2026-09-29T23:01:57.799Z"
+}
