@@ -133,3 +133,107 @@ def test_checking_pan_shows_its_definition_rows(qtbot, make_gdtf):
     assert rows["MainAttribute"] == ("N/A", "N/A")
     assert rows["PhysicalUnit"] == ("Angle", "N/A")
     assert rows["Color"] == ("N/A", "N/A")
+
+
+# --- Odd/colliding definitions in the real-run panel (Task 2) -------------
+
+
+def _section_texts(picker) -> list:
+    return [
+        picker.tree.topLevelItem(index).text(0)
+        for index in range(picker.tree.topLevelItemCount())
+    ]
+
+
+def _section_and_leaf_texts(picker):
+    """Return (section texts, per-section leaf texts) in tree order."""
+    sections = _section_texts(picker)
+    leaves = []
+    for index in range(picker.tree.topLevelItemCount()):
+        section = picker.tree.topLevelItem(index)
+        leaves.append([section.child(i).text(0) for i in range(section.childCount())])
+    return sections, leaves
+
+
+def _run_window(qtbot, make_gdtf, *, target_attributes_xml: str, comparison_attributes_xml: str) -> MainWindow:
+    target = make_gdtf(
+        "target.gdtf",
+        name="Target Fixture",
+        geometries_xml=_GEOMETRIES_XML,
+        attributes_xml=target_attributes_xml,
+    )
+    comparison = make_gdtf(
+        "comparison.gdtf",
+        name="Comparison Fixture",
+        geometries_xml=_GEOMETRIES_XML,
+        attributes_xml=comparison_attributes_xml,
+    )
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window.set_target_file(str(target))
+    window.add_compare_files([str(comparison)])
+
+    qtbot.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: window.run_button.isEnabled(), timeout=10000)
+
+    return window
+
+
+def test_zero_definitions_shows_only_legacy_sections(qtbot, make_gdtf):
+    window = _run_window(
+        qtbot, make_gdtf, target_attributes_xml="", comparison_attributes_xml=""
+    )
+    picker = window.attribute_picker
+
+    assert _section_texts(picker) == ["Beam", "Physical Properties"]
+
+
+_BEAM_GROUP_XML = (
+    '<Attribute Name="BeamAngle" Pretty="BA" Feature="Beam.Beam"/>'
+    '<Attribute Name="Zoom" Pretty="Z" Feature="Beam.Beam" PhysicalUnit="Angle"/>'
+)
+
+
+def test_dmx_beam_group_stays_separate_and_unchecked(qtbot, make_gdtf):
+    window = _run_window(
+        qtbot,
+        make_gdtf,
+        target_attributes_xml=_BEAM_GROUP_XML,
+        comparison_attributes_xml=_BEAM_GROUP_XML,
+    )
+    picker = window.attribute_picker
+
+    assert _section_texts(picker) == ["Beam", "Physical Properties", "DMX: Beam"]
+    assert picker.leaf_item("Beam", "BeamAngle").checkState(0) == Qt.CheckState.Checked
+    assert picker.leaf_item("DMX: Beam", "BeamAngle").checkState(0) == Qt.CheckState.Unchecked
+    assert window.table_view.model().rowCount() == 7
+
+
+_ORDERED_DEFINITIONS_XML = (
+    '<Attribute Name="Dimmer" Pretty="Dim" Feature="Dimmer.Dimmer"/>'
+    '<Attribute Name="Pan" Pretty="P" Feature="Position.PanTilt"/>'
+    '<Attribute Name="Gobo1" Pretty="G1" Feature="Gobo.Gobo"/>'
+)
+
+
+def test_dmx_sections_follow_document_order_across_runs(qtbot, make_gdtf):
+    window = _run_window(
+        qtbot,
+        make_gdtf,
+        target_attributes_xml=_ORDERED_DEFINITIONS_XML,
+        comparison_attributes_xml=_ORDERED_DEFINITIONS_XML,
+    )
+    picker = window.attribute_picker
+
+    assert _section_texts(picker)[2:] == ["DMX: Dimmer", "DMX: Position", "DMX: Gobo"]
+
+    first_sections, first_leaves = _section_and_leaf_texts(picker)
+
+    qtbot.mouseClick(window.run_button, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: window.run_button.isEnabled(), timeout=10000)
+
+    second_sections, second_leaves = _section_and_leaf_texts(picker)
+    assert second_sections == first_sections
+    assert second_leaves == first_leaves

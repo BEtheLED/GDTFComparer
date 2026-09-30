@@ -1,10 +1,18 @@
 """Unit tests for core.extract: per-GeometryBeam and per-Model namespacing (D-11),
 and per-AttributeDefinitions DMX attribute extraction (ATTR-01, Plan 02-02)."""
 
+import re
+import zipfile
+
 import pygdtf
 import pytest
 
-from gdtf_comparer.core.extract import DescriptionMismatchError, extract_attributes
+from gdtf_comparer.core.comparator import compare_files
+from gdtf_comparer.core.extract import (
+    DescriptionMismatchError,
+    dmx_attribute_category,
+    extract_attributes,
+)
 from gdtf_comparer.core.hardening import prevalidate_gdtf_document
 from gdtf_comparer.core.models import (
     CATEGORY_BEAM,
@@ -435,3 +443,162 @@ def test_definition_count_mismatch_raises(make_gdtf):
     with pygdtf.FixtureType(str(fixture_path)) as fixture_type:
         with pytest.raises(DescriptionMismatchError):
             extract_attributes(fixture_type, validated.description_root)
+
+
+# --- Odd/colliding definitions and the shared presence check (Task 2) -----
+
+
+@pytest.mark.parametrize(
+    "feature_link,expected_group",
+    [
+        (None, UNGROUPED_FEATURE_GROUP),
+        ("", UNGROUPED_FEATURE_GROUP),
+        (".PanTilt", UNGROUPED_FEATURE_GROUP),
+        ("   ", UNGROUPED_FEATURE_GROUP),
+        ("Position.PanTilt", "Position"),
+        ("Position", "Position"),
+        ("  Gobo .Gobo", "Gobo"),
+        ("Beam.Beam", "Beam"),
+    ],
+)
+def test_dmx_attribute_category_edges(feature_link, expected_group):
+    assert dmx_attribute_category(feature_link) == f"{DMX_ATTRIBUTE_CATEGORY_PREFIX}{expected_group}"
+
+
+def test_duplicate_definition_names_get_suffix(make_gdtf):
+    attributes_xml = (
+        '<Attribute Name="Pan" Pretty="P1" Feature="Position.PanTilt"/>'
+        '<Attribute Name="Pan" Pretty="P2" Feature="Position.PanTilt"/>'
+    )
+    path = make_gdtf("fixture.gdtf", attributes_xml=attributes_xml)
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey("DMX: Position", "Pretty", "Pan")] == "P1"
+    assert attributes[AttributeKey("DMX: Position", "Pretty", "Pan#2")] == "P2"
+    pan_keys = [key for key in attributes if key.attribute == "Pan"]
+    pan2_keys = [key for key in attributes if key.attribute == "Pan#2"]
+    assert len(pan_keys) == 6
+    assert len(pan2_keys) == 6
+
+
+def test_unnamed_definition_label(make_gdtf):
+    attributes_xml = (
+        '<Attribute Name="Pan" Pretty="P" Feature="Position.PanTilt"/>'
+        '<Attribute Pretty="X" Feature="Control.Control"/>'
+    )
+    path = make_gdtf("fixture.gdtf", attributes_xml=attributes_xml)
+
+    attributes = _extract(path)
+
+    assert (
+        attributes[AttributeKey("DMX: Control", "Pretty", "(unnamed attribute 2)")] == "X"
+    )
+
+
+def test_legacy_named_definitions_do_not_collide(make_gdtf):
+    attributes_xml = (
+        '<Attribute Name="BeamAngle" Pretty="BA" Feature="Beam.Beam"/>'
+        '<Attribute Name="Weight" Pretty="W" Feature="Control.Control"/>'
+    )
+    geometries_xml = '<Geometry Name="Head"><Beam Name="Beam" BeamAngle="10"/></Geometry>'
+    path = make_gdtf(
+        "fixture.gdtf",
+        weight=10.0,
+        geometries_xml=geometries_xml,
+        attributes_xml=attributes_xml,
+    )
+
+    attributes = _extract(path)
+
+    assert attributes[AttributeKey(CATEGORY_BEAM, "Head/Beam", "BeamAngle")] == 10.0
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, FIXTURE_LEVEL_PATH, "Weight")] == 10.0
+    assert attributes[AttributeKey("DMX: Beam", "Pretty", "BeamAngle")] == "BA"
+    assert attributes[AttributeKey("DMX: Control", "Pretty", "Weight")] == "W"
+    assert all(
+        key.category.startswith(DMX_ATTRIBUTE_CATEGORY_PREFIX)
+        for key in attributes
+        if key.category not in (CATEGORY_BEAM, CATEGORY_PHYSICAL)
+    )
+
+
+def _read_description_xml(path) -> str:
+    with zipfile.ZipFile(path) as archive:
+        return archive.read("description.xml").decode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "variant", ["empty_attributes", "no_attributes_element", "no_attribute_definitions_element"]
+)
+def test_missing_definition_blocks_give_no_definitions(make_gdtf, variant):
+    if variant == "empty_attributes":
+        path = make_gdtf("fixture.gdtf", weight=5.0)
+    else:
+        base_path = make_gdtf("base.gdtf", weight=5.0)
+        text = _read_description_xml(base_path)
+        if variant == "no_attributes_element":
+            edited = re.sub(r"<Attributes>.*?</Attributes>\n?", "", text, flags=re.DOTALL)
+        else:
+            edited = re.sub(
+                r"<AttributeDefinitions>.*?</AttributeDefinitions>\n?",
+                "",
+                text,
+                flags=re.DOTALL,
+            )
+        path = make_gdtf("fixture.gdtf", weight=5.0, description=edited)
+
+    attributes = _extract(path)
+
+    assert not any(key.category.startswith(DMX_ATTRIBUTE_CATEGORY_PREFIX) for key in attributes)
+    assert attributes[AttributeKey(CATEGORY_PHYSICAL, FIXTURE_LEVEL_PATH, "Weight")] == 5.0
+
+
+def test_definition_name_mismatch_raises(make_gdtf):
+    validated_path = make_gdtf("pan.gdtf", attributes_xml='<Attribute Name="Pan" Pretty="P"/>')
+    fixture_path = make_gdtf("tilt.gdtf", attributes_xml='<Attribute Name="Tilt" Pretty="T"/>')
+    validated = prevalidate_gdtf_document(str(validated_path))
+
+    with pygdtf.FixtureType(str(fixture_path)) as fixture_type:
+        with pytest.raises(DescriptionMismatchError):
+            extract_attributes(fixture_type, validated.description_root)
+
+
+def test_color_decimal_padding_compares_equal(make_gdtf):
+    target = make_gdtf(
+        "target.gdtf",
+        attributes_xml=(
+            '<Attribute Name="Pan" Pretty="P" Feature="Position.PanTilt"'
+            ' Color="0.64,0.33,21.26"/>'
+        ),
+    )
+    comparison = make_gdtf(
+        "comparison.gdtf",
+        attributes_xml=(
+            '<Attribute Name="Pan" Pretty="P" Feature="Position.PanTilt"'
+            ' Color="0.640000,0.330000,21.260000"/>'
+        ),
+    )
+
+    result = compare_files(str(target), [str(comparison)])
+
+    color_row = next(
+        row
+        for row in result.rows
+        if row.key.category == "DMX: Position"
+        and row.key.element_path == "Color"
+        and row.key.attribute == "Pan"
+    )
+    assert color_row.differs == (False,)
+
+
+def test_declared_malformed_values_follow_pygdtf(make_gdtf):
+    path = make_gdtf(
+        "fixture.gdtf",
+        attributes_xml='<Attribute Name="Pan" Pretty="P" PhysicalUnit="Bogus" Color="garbage"/>',
+    )
+
+    attributes = _extract(path)
+
+    category = f"{DMX_ATTRIBUTE_CATEGORY_PREFIX}{UNGROUPED_FEATURE_GROUP}"
+    assert attributes[AttributeKey(category, "PhysicalUnit", "Pan")] is None
+    assert attributes[AttributeKey(category, "Color", "Pan")] == "0.312700,0.329000,100.000000"
