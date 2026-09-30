@@ -38,13 +38,16 @@ and Model dimension (Width/Height/Length 0) into its object model, and never
 exposes that the value was defaulted rather than declared. extract_attributes
 is therefore handed the validated <GDTF> tree (core.hardening.ValidatedGDTF.
 description_root, from the same read pygdtf parsed) alongside the pygdtf
-FixtureType, and checks -- for every displayed attribute -- whether the
-manufacturer's file actually declared it, by looking for that exact XML
-attribute name on the paired element. An undeclared attribute is always None
-("N/A" via format_value), even when pygdtf's backfilled value happens to
-equal what a real declaration would show; a declared value is always shown
-as declared, even when it equals the spec default. The validated tree and
-pygdtf's parsed model must be walked in lockstep (the same child-tag filter
+FixtureType, and checks -- for every displayed attribute, whether Beam, Model
+or DMX attribute definition -- whether the manufacturer's file actually
+declared it, by looking for that exact XML attribute name on the paired
+element. Every one of these three goes through the single shared
+_declared_values presence-check helper (Plan 02-02, Task 2); there is no
+separate, hand-written presence loop per category. An undeclared attribute is
+always None ("N/A" via format_value), even when pygdtf's backfilled value
+happens to equal what a real declaration would show; a declared value is
+always shown as declared, even when it equals the spec default. The validated
+tree and pygdtf's parsed model must be walked in lockstep (the same child-tag filter
 pygdtf itself applies, pygdtf.geometries.TAG_TO_GEOMETRY_CLASS) so presence
 is read from the correct paired element; any divergence raises
 DescriptionMismatchError rather than guessing (fail closed, T-01-23).
@@ -80,23 +83,9 @@ class DescriptionMismatchError(ValueError):
     error (T-01-17).
     """
 
-BEAM_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
-    ("BeamAngle", "beam_angle"),
-    ("FieldAngle", "field_angle"),
-    ("PowerConsumption", "power_consumption"),
-    ("LuminousFlux", "luminous_flux"),
-    ("ColorTemperature", "color_temperature"),
-    ("BeamType", "beam_type"),
-)
-
-MODEL_ATTRIBUTES: Tuple[Tuple[str, str], ...] = (
-    ("Width", "width"),
-    ("Height", "height"),
-    ("Length", "length"),
-)
-
 # (XML attribute name, pygdtf field name, value transform) triple used by the
-# DMX attribute-definition presence check (_declared_values).
+# single presence-check helper (_declared_values) shared by Beam, Model and
+# DMX attribute-definition extraction (Plan 02-02, Task 2).
 AttributeSpec = Tuple[str, str, Callable[[Any], AttributeValue]]
 
 
@@ -124,6 +113,23 @@ def _as_text(raw: Any) -> AttributeValue:
     """Return raw as plain text (str(raw)) -- used for Pretty and Color."""
     return str(raw)
 
+
+BEAM_ATTRIBUTES: Tuple[AttributeSpec, ...] = (
+    ("BeamAngle", "beam_angle", _as_float),
+    ("FieldAngle", "field_angle", _as_float),
+    ("PowerConsumption", "power_consumption", _as_float),
+    ("LuminousFlux", "luminous_flux", _as_float),
+    ("ColorTemperature", "color_temperature", _as_float),
+    # pygdtf's beam_type is never None -- a None here comes only from the
+    # presence check in _declared_values (closes REVIEW IN-03).
+    ("BeamType", "beam_type", _enum_value),
+)
+
+MODEL_ATTRIBUTES: Tuple[AttributeSpec, ...] = (
+    ("Width", "width", _as_float),
+    ("Height", "height", _as_float),
+    ("Length", "length", _as_float),
+)
 
 ATTRIBUTE_DEFINITION_PROPERTIES: Tuple[AttributeSpec, ...] = (
     ("Pretty", "pretty", _as_text),
@@ -405,17 +411,7 @@ def extract_attributes(
         if not isinstance(node, GeometryBeam):
             continue
         element_path = _unique_path(path, beam_paths)
-        for gdtf_name, field_name in BEAM_ATTRIBUTES:
-            if gdtf_name not in element.attrib:
-                value: AttributeValue = None
-            else:
-                raw_value = getattr(node, field_name, None)
-                if gdtf_name == "BeamType":
-                    # pygdtf's beam_type is never None -- a None here comes
-                    # only from the presence check above (closes REVIEW IN-03).
-                    value = raw_value.value if raw_value is not None else None
-                else:
-                    value = float(raw_value) if raw_value is not None else None
+        for gdtf_name, value in _declared_values(node, element, BEAM_ATTRIBUTES):
             attributes[AttributeKey(CATEGORY_BEAM, element_path, gdtf_name)] = value
 
     models_element = fixture_type_element.find("Models")
@@ -431,12 +427,7 @@ def extract_attributes(
     for index, (model, model_element) in enumerate(zip(models, raw_models), start=1):
         model_name = getattr(model, "name", None) or f"(unnamed model {index})"
         element_path = _unique_path(model_name, model_paths)
-        for gdtf_name, field_name in MODEL_ATTRIBUTES:
-            if gdtf_name not in model_element.attrib:
-                value = None
-            else:
-                raw_value = getattr(model, field_name, None)
-                value = float(raw_value) if raw_value is not None else None
+        for gdtf_name, value in _declared_values(model, model_element, MODEL_ATTRIBUTES):
             attributes[AttributeKey(CATEGORY_PHYSICAL, element_path, gdtf_name)] = value
 
     raw_definitions = _attribute_definition_elements(fixture_type_element)
@@ -449,7 +440,14 @@ def extract_attributes(
 
     definition_names: Set[str] = set()
     for index, (definition, element) in enumerate(zip(definitions, raw_definitions), start=1):
-        name = getattr(definition, "name", None) or f"(unnamed attribute {index})"
+        parsed_name = getattr(definition, "name", None)
+        declared_name = element.attrib.get("Name")
+        if parsed_name != declared_name:
+            raise DescriptionMismatchError(
+                "the validated description.xml tree's attribute definition "
+                "names do not match pygdtf's parsed attribute definitions."
+            )
+        name = parsed_name or f"(unnamed attribute {index})"
         attribute_name = _unique_path(name, definition_names)
         values = list(_declared_values(definition, element, ATTRIBUTE_DEFINITION_PROPERTIES))
         feature = dict(values)["Feature"]
