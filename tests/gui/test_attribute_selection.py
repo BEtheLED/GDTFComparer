@@ -4,6 +4,7 @@ results table (ATTR-01, ATTR-02, D-01..D-04)."""
 from PySide6.QtCore import Qt
 
 from gdtf_comparer.core.models import CATEGORY_BEAM, CATEGORY_PHYSICAL
+from gdtf_comparer.gui import main_window as main_window_module
 from gdtf_comparer.gui.main_window import MainWindow
 from gdtf_comparer.gui.table_model import ComparisonTableModel
 
@@ -117,3 +118,35 @@ def test_selection_survives_rerun(qtbot, make_gdtf):
     assert (CATEGORY_BEAM, "BeamAngle") not in picker.checked_attributes()
     assert (CATEGORY_BEAM, "FieldAngle") in picker.checked_attributes()
     assert window.table_view.model().rowCount() == 17
+
+
+def test_no_attributes_checked_shows_empty_table_and_hint(qtbot, make_gdtf):
+    window = _run_comparison(qtbot, make_gdtf)
+    picker = window.attribute_picker
+
+    with qtbot.waitSignal(picker.selection_changed, timeout=1000):
+        picker.section_item(CATEGORY_BEAM).setCheckState(0, Qt.CheckState.Unchecked)
+    with qtbot.waitSignal(picker.selection_changed, timeout=1000):
+        picker.section_item(CATEGORY_PHYSICAL).setCheckState(0, Qt.CheckState.Unchecked)
+
+    assert window.table_view.model().rowCount() == 0
+    assert window.table_model.rowCount() == 19
+    assert (
+        window.statusBar().currentMessage()
+        == main_window_module.NO_ATTRIBUTES_SELECTED_MESSAGE
+    )
+
+    with qtbot.waitSignal(picker.selection_changed, timeout=1000):
+        picker.section_item(CATEGORY_BEAM).setCheckState(0, Qt.CheckState.Checked)
+
+    assert window.statusBar().currentMessage() == (
+        "Compared 1 file(s) against target.gdtf"
+    )
+
+
+def test_search_does_not_change_table_rows(qtbot, make_gdtf):
+    window = _run_comparison(qtbot, make_gdtf)
+
+    qtbot.keyClicks(window.attribute_picker.search_edit, "angle")
+
+    assert window.table_view.model().rowCount() == 19
