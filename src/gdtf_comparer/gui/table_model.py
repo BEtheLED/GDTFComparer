@@ -318,6 +318,52 @@ class AttributeSelectionProxyModel(QSortFilterProxyModel):
         return key is not None and tuple(key) in self._selected
 
 
+class DifferencesOnlyProxyModel(QSortFilterProxyModel):
+    """View-only proxy that hides rows where nothing differs (Phase 2 D-06).
+
+    On top of the cell highlighting, not a replacement for it: this proxy
+    never modifies the source model or the ComparisonResult it presents, and
+    it never sorts, so the rows it shows keep the source's order. It reads
+    the row's any_differs flag through ANY_DIFFERS_ROLE rather than calling
+    sourceModel().result(), so it works at any position in a proxy chain
+    (same pattern as AttributeSelectionProxyModel / SELECTION_KEY_ROLE).
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._enabled = False
+
+    def set_differences_only(self, enabled: bool) -> None:
+        """Enable or disable the differences-only filter and refilter.
+
+        Parameters:
+            enabled: True to show only rows where any_differs is True.
+
+        A no-op when enabled already matches the current state. Uses
+        beginFilterChange()/endFilterChange() rather than the single-call
+        invalidate*() methods, which raise DeprecationWarning under PySide6
+        6.11.2 (same pattern as AttributeSelectionProxyModel).
+        """
+        enabled = bool(enabled)
+        if enabled == self._enabled:
+            return
+        self.beginFilterChange()
+        self._enabled = enabled
+        self.endFilterChange(QSortFilterProxyModel.Direction.Rows)
+
+    def differences_only(self) -> bool:
+        """Return True when the differences-only filter is enabled."""
+        return self._enabled
+
+    def filterAcceptsRow(self, source_row: int, source_parent: QModelIndex) -> bool:
+        """Accept every row when disabled; only any_differs rows when enabled."""
+        if not self._enabled:
+            return True
+        return bool(
+            self.sourceModel().index(source_row, 0, source_parent).data(ANY_DIFFERS_ROLE)
+        )
+
+
 class BackgroundBrushDelegate(QStyledItemDelegate):
     """Paints a cell's BackgroundRole brush before Qt's own item painting.
 

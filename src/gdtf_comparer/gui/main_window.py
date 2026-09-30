@@ -13,6 +13,7 @@ from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -37,6 +38,7 @@ from gdtf_comparer.gui.table_model import (
     AttributeSelectionProxyModel,
     BackgroundBrushDelegate,
     ComparisonTableModel,
+    DifferencesOnlyProxyModel,
     UppercaseHeaderProxyModel,
 )
 from gdtf_comparer.gui.theme import current_theme_name, diff_highlight_color
@@ -48,6 +50,17 @@ GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
 # currently checked in the Attributes panel (D-03; _show_result_status).
 NO_ATTRIBUTES_SELECTED_MESSAGE = (
     "No attributes selected. Check attributes in the Attributes panel to show them."
+)
+
+# Label for the "differences only" checkbox above the results table
+# (Phase 2 D-06).
+DIFFERENCES_ONLY_LABEL = "Show differences only"
+
+# Status bar message shown when "Show differences only" is ticked and no
+# selected row differs from the target (Phase 2 D-06; _show_result_status).
+NO_DIFFERENCES_MESSAGE = (
+    'No differences in the selected attributes. Untick "Show differences only" '
+    "to see every row."
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -159,8 +172,13 @@ class MainWindow(QMainWindow):
         self.table_model = ComparisonTableModel(central)
         self.selection_proxy = AttributeSelectionProxyModel(central)
         self.selection_proxy.setSourceModel(self.table_model)
+        # "Show differences only" (Phase 2 D-06) sits after attribute
+        # selection and before the header proxy: table_model -> selection_proxy
+        # -> differences_proxy -> header_proxy -> table_view.
+        self.differences_proxy = DifferencesOnlyProxyModel(central)
+        self.differences_proxy.setSourceModel(self.selection_proxy)
         self.header_proxy = UppercaseHeaderProxyModel(central)
-        self.header_proxy.setSourceModel(self.selection_proxy)
+        self.header_proxy.setSourceModel(self.differences_proxy)
         self.table_view = QTableView(central)
         self.table_view.setModel(self.header_proxy)
         self.table_view.setAlternatingRowColors(True)
@@ -193,6 +211,17 @@ class MainWindow(QMainWindow):
         self.results_panel = QWidget(central)
         results_layout = QVBoxLayout(self.results_panel)
         results_layout.setContentsMargins(0, 0, 0, 0)
+
+        # "Show differences only" toggle row (Phase 2 D-06): above the
+        # table, on top of the cell highlighting, never a replacement for it.
+        toggle_row = QHBoxLayout()
+        self.differences_only_checkbox = QCheckBox(DIFFERENCES_ONLY_LABEL, self.results_panel)
+        self.differences_only_checkbox.setChecked(False)
+        self.differences_only_checkbox.toggled.connect(self._apply_differences_only)
+        toggle_row.addWidget(self.differences_only_checkbox)
+        toggle_row.addStretch(1)
+        results_layout.addLayout(toggle_row)
+
         results_layout.addWidget(self.table_view)
 
         self.content_splitter = QSplitter(Qt.Orientation.Horizontal, central)
@@ -380,20 +409,45 @@ class MainWindow(QMainWindow):
             self._fit_columns_to_contents()
         self._show_result_status()
 
+    def _apply_differences_only(self, checked: bool) -> None:
+        """Push the "Show differences only" checkbox state into its proxy.
+
+        Parameters:
+            checked: The checkbox's new state.
+
+        Connected to differences_only_checkbox.toggled (Phase 2 D-06): the
+        toggle is kept on top of the cell highlighting, never a replacement
+        for it, and applies to whichever result is current (including one
+        that arrives later, since run_comparison never touches the checkbox).
+        """
+        self.differences_proxy.set_differences_only(checked)
+        if self.table_model.result() is not None:
+            self._fit_columns_to_contents()
+        self._show_result_status()
+
     def _show_result_status(self) -> None:
         """Show the status bar message matching the current result/selection.
 
-        The single place that writes the result status (Plan 02-03 extends
-        this with a "no differences" case): does nothing while no result is
-        loaded, shows NO_ATTRIBUTES_SELECTED_MESSAGE when the result has rows
-        but none are currently selected, otherwise the normal "Compared N
-        file(s)..." summary.
+        The single place that writes the result status: does nothing while
+        no result is loaded, shows NO_ATTRIBUTES_SELECTED_MESSAGE when the
+        result has rows but none are currently selected (that case keeps
+        precedence over the differences-only case), shows
+        NO_DIFFERENCES_MESSAGE when "Show differences only" is ticked and
+        every selected row agrees with the target, otherwise the normal
+        "Compared N file(s)..." summary (Phase 2 D-06).
         """
         result = self.table_model.result()
         if result is None:
             return
         if self.table_model.rowCount() > 0 and self.selection_proxy.rowCount() == 0:
             self.statusBar().showMessage(NO_ATTRIBUTES_SELECTED_MESSAGE)
+            return
+        if (
+            self.differences_proxy.differences_only()
+            and self.selection_proxy.rowCount() > 0
+            and self.differences_proxy.rowCount() == 0
+        ):
+            self.statusBar().showMessage(NO_DIFFERENCES_MESSAGE)
             return
         self.statusBar().showMessage(
             f"Compared {len(result.comparisons)} file(s) against {result.target.file_name}"
