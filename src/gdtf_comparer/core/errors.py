@@ -2,7 +2,8 @@
 
 GDTFError.user_message names the failing file and a lowercase reason
 fragment only -- never a traceback or exception repr (T-01-17) -- so it is
-always safe to show directly in a GUI dialog.
+always safe to show directly in a GUI dialog. This module also holds the
+compare-profile errors (ATTR-03) raised by core.profile_repository.
 """
 
 import os
@@ -46,3 +47,35 @@ class GDTFUnsafeFileError(GDTFValidationError):
 
 class GDTFParseError(GDTFError):
     """pygdtf itself failed to parse an already-validated file."""
+
+
+class ProfileError(Exception):
+    """Base error for compare-profile persistence failures (ATTR-03).
+
+    Unlike GDTFError, a profile error has no single failing file path to
+    name -- every saved profile lives in one shared profiles.json -- so this
+    is constructed directly with a friendly, complete message string.
+
+    Parameters:
+        message: The friendly, user-facing message, safe to show directly in
+            a GUI dialog (no tracebacks, no exception reprs).
+    """
+
+    def __init__(self, message: str) -> None:
+        self.user_message = message
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        return self.user_message
+
+
+class ProfileNameError(ProfileError):
+    """A profile name is invalid, or conflicts with a reserved rule."""
+
+
+class ProfileNotFoundError(ProfileError):
+    """No saved profile exists under the given name."""
+
+
+class ProfileStorageError(ProfileError):
+    """profiles.json could not be read, is damaged or too new, or could not be written."""

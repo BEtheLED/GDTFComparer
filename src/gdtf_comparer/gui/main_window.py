@@ -14,10 +14,12 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -32,7 +34,9 @@ from PySide6.QtWidgets import (
 )
 
 from gdtf_comparer.core.comparator import attribute_catalog
+from gdtf_comparer.core.errors import ProfileError
 from gdtf_comparer.core.models import ComparisonResult
+from gdtf_comparer.core.profile_repository import Profile, ProfileRepository
 from gdtf_comparer.gui.attribute_picker import AttributePicker
 from gdtf_comparer.gui.table_model import (
     AttributeSelectionProxyModel,
@@ -61,6 +65,21 @@ DIFFERENCES_ONLY_LABEL = "Show differences only"
 NO_DIFFERENCES_MESSAGE = (
     'No differences in the selected attributes. Untick "Show differences only" '
     "to see every row."
+)
+
+# Profile toolbar row (Phase 3 D-02, D-07): sits directly above the
+# attribute picker at the top of the Attributes side panel.
+PROFILE_PLACEHOLDER = "Load a profile…"
+NO_PROFILES_PLACEHOLDER = "No saved profiles yet"
+PROFILES_UNAVAILABLE_PLACEHOLDER = "Saved profiles unavailable"
+SAVE_PROFILE_LABEL = "Save…"
+SAVE_PROFILE_TITLE = "Save Compare Profile"
+SAVE_PROFILE_PROMPT = "Name for the attributes checked now:"
+PROFILE_COMBO_TOOLTIP = "Pick a saved compare profile to check exactly its attributes"
+SAVE_PROFILE_TOOLTIP = "Save the attributes checked below as a named compare profile"
+PROFILE_SAVED_TEMPLATE = "Saved profile '{name}' ({count} attributes)."
+OVERWRITE_PROFILE_TEMPLATE = (
+    "A profile named '{name}' already exists. Replace it with the attributes checked now?"
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -109,12 +128,20 @@ def _normalized_path(path: str) -> str:
 class MainWindow(QMainWindow):
     """Pick a target + comparison GDTF files, run a comparison, view the table."""
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(
+        self,
+        parent: Optional[QWidget] = None,
+        profile_repository: Optional[ProfileRepository] = None,
+    ) -> None:
         super().__init__(parent)
         self.target_file: str = ""
         self.compare_files: List[str] = []
         self._thread: Optional[QThread] = None
         self._worker: Optional[ComparisonWorker] = None
+        self.profile_repository = (
+            profile_repository if profile_repository is not None else ProfileRepository()
+        )
+        self._active_profile: Optional[Profile] = None
 
         self.setWindowTitle("GDTF Comparer")
         # 1280x720 (up from 1000x650) keeps the table area beside the 260 px
@@ -203,6 +230,27 @@ class MainWindow(QMainWindow):
         # above the table inside results_panel.
         self.attributes_group = QGroupBox("Attributes", central)
         attributes_layout = QVBoxLayout(self.attributes_group)
+
+        # Profile toolbar row (Phase 3 D-02, D-07): sits directly above the
+        # attribute picker, one row holding the load dropdown and Save….
+        self.profile_row = QHBoxLayout()
+        self.profile_combo = QComboBox(self.attributes_group)
+        self.profile_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
+        self.profile_combo.setMinimumContentsLength(8)
+        self.profile_combo.setMaxVisibleItems(15)
+        self.profile_combo.setToolTip(PROFILE_COMBO_TOOLTIP)
+        self.profile_combo.activated.connect(self._load_selected_profile)
+        self.profile_row.addWidget(self.profile_combo, 1)
+
+        self.save_profile_button = QPushButton(SAVE_PROFILE_LABEL, self.attributes_group)
+        self.save_profile_button.setToolTip(SAVE_PROFILE_TOOLTIP)
+        self.save_profile_button.clicked.connect(self._save_profile)
+        self.profile_row.addWidget(self.save_profile_button)
+
+        attributes_layout.addLayout(self.profile_row)
+
         self.attribute_picker = AttributePicker(self.attributes_group)
         attributes_layout.addWidget(self.attribute_picker)
         self.attributes_group.setMinimumWidth(220)
@@ -240,6 +288,7 @@ class MainWindow(QMainWindow):
         style_hints.colorSchemeChanged.connect(self._on_color_scheme_changed)
 
         self.statusBar().showMessage("Ready")
+        self._refresh_profile_combo()
 
     @Slot(Qt.ColorScheme)
     def _on_color_scheme_changed(self, scheme) -> None:
@@ -554,6 +603,100 @@ class MainWindow(QMainWindow):
                     CLOSE_WAIT_TIMEOUT_MS,
                 )
         super().closeEvent(event)
+
+    def _refresh_profile_combo(self, select_name: Optional[str] = None) -> None:
+        """Repopulate the profile dropdown from disk.
+
+        Parameters:
+            select_name: When given, the combo's current index is set to
+                the item whose text equals select_name exactly, if present.
+
+        Repopulating never loads a profile by itself (RESEARCH Pitfall 3):
+        self.profile_combo.activated is only ever emitted by a user's own
+        click/selection, never by clear()/addItem()/setCurrentIndex() below,
+        so this is always safe to call after a save.
+        """
+        profiles = self.profile_repository.load_all()
+        self.profile_combo.clear()
+        for profile in profiles:
+            self.profile_combo.addItem(profile.name)
+        self.profile_combo.setEnabled(bool(profiles))
+        self.profile_combo.setPlaceholderText(
+            PROFILE_PLACEHOLDER if profiles else NO_PROFILES_PLACEHOLDER
+        )
+
+        index = -1
+        if select_name is not None:
+            for candidate_index in range(self.profile_combo.count()):
+                if self.profile_combo.itemText(candidate_index) == select_name:
+                    index = candidate_index
+                    break
+        self.profile_combo.setCurrentIndex(index)
+
+    def _ask_profile_name(self, title: str, label: str, default_text: str = "") -> Optional[str]:
+        """Prompt for a profile name.
+
+        Parameters:
+            title: The dialog's window title.
+            label: The prompt text shown above the input field.
+            default_text: Text pre-filled into the input field.
+
+        Returns:
+            The entered text, or None if the user cancelled. This is the
+            single place the name prompt opens, so tests can monkeypatch it
+            directly instead of driving a real modal dialog.
+        """
+        text, ok = QInputDialog.getText(self, title, label, QLineEdit.EchoMode.Normal, default_text)
+        return text if ok else None
+
+    def _save_profile(self) -> None:
+        """Save the currently checked attributes as a named compare profile."""
+        name = self._ask_profile_name(
+            SAVE_PROFILE_TITLE,
+            SAVE_PROFILE_PROMPT,
+            self._active_profile.name if self._active_profile else "",
+        )
+        if name is None:
+            return
+
+        try:
+            profile = self.profile_repository.save(name, self.attribute_picker.checked_attributes())
+        except ProfileError as exc:
+            self._show_error(str(exc))
+            return
+
+        self._active_profile = profile
+        self._refresh_profile_combo(select_name=profile.name)
+        self.statusBar().showMessage(
+            PROFILE_SAVED_TEMPLATE.format(name=profile.name, count=len(profile.attributes))
+        )
+
+    def _load_selected_profile(self, index: int) -> None:
+        """Load the profile at index into the attribute picker (D-02, D-03).
+
+        Parameters:
+            index: The combo index the user just picked. Connected to
+                profile_combo.activated only (RESEARCH Pitfall 3), so this
+                never runs from a programmatic repopulation.
+
+        Replaces the picker's checked set entirely via
+        AttributePicker.set_checked(), which fires selection_changed exactly
+        once; the existing selection_changed -> _apply_attribute_selection
+        chain then re-filters the table, refits columns and refreshes the
+        status message -- this method never duplicates that work.
+        """
+        if index < 0:
+            return
+        name = self.profile_combo.itemText(index)
+        try:
+            profile = self.profile_repository.get(name)
+        except ProfileError as exc:
+            self._show_error(str(exc))
+            self._refresh_profile_combo()
+            return
+
+        self._active_profile = profile
+        self.attribute_picker.set_checked(profile.attributes)
 
     def _show_error(self, message: str) -> None:
         """Show a friendly modal, plain-text error dialog.
