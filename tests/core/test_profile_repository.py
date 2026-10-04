@@ -364,6 +364,57 @@ def test_rename_refuses_damaged_file(tmp_path):
     assert (tmp_path / "profiles.json").read_bytes() == original_bytes
 
 
+def test_rename_and_delete(tmp_path):
+    """VALIDATION.md D-05 row: rename then delete leaves exactly the renamed survivor."""
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    a_attrs = {("Beam", "BeamAngle")}
+    repo.save("A", a_attrs)
+    repo.save("B", {("Beam", "FieldAngle")})
+
+    repo.rename("A", "C")
+    repo.delete("b")
+
+    fresh = ProfileRepository(base_dir=str(tmp_path))
+    profiles = fresh.load_all()
+    assert len(profiles) == 1
+    assert profiles[0].name == "C"
+    assert profiles[0].attributes == frozenset(a_attrs)
+
+
+def test_delete_missing_profile_raises_not_found(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("A", {("Beam", "BeamAngle")})
+    original_bytes = open(repo.path, "rb").read()
+
+    with pytest.raises(ProfileNotFoundError):
+        repo.delete("Gone")
+
+    assert open(repo.path, "rb").read() == original_bytes
+
+
+def test_delete_last_profile_leaves_empty_store(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("Only", {("Beam", "BeamAngle")})
+
+    repo.delete("Only")
+
+    with open(repo.path, "r", encoding="utf-8") as fh:
+        payload = json.load(fh)
+    assert payload == {"version": 1, "profiles": []}
+    assert repo.load_all() == []
+
+
+def test_delete_refuses_damaged_file(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_text("{not json", encoding="utf-8")
+    original_bytes = (tmp_path / "profiles.json").read_bytes()
+
+    with pytest.raises(ProfileStorageError):
+        repo.delete("A")
+
+    assert (tmp_path / "profiles.json").read_bytes() == original_bytes
+
+
 def test_missing_attributes():
     a = ("Beam", "BeamAngle")
     b = ("Beam", "FieldAngle")

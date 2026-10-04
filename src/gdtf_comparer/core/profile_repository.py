@@ -423,6 +423,33 @@ class ProfileRepository:
         self._write_all(by_key.values())
         return renamed
 
+    def delete(self, name: str) -> None:
+        """Delete a saved profile for good (D-05).
+
+        Parameters:
+            name: The profile name to remove, matched by profile_name_key
+                (surrounding whitespace, letter case and Unicode
+                normalization form all ignored).
+
+        Raises:
+            ProfileNotFoundError: No saved profile matches name.
+            ProfileStorageError: profiles.json could not be read in the
+                first place -- since this method starts from load_all(), a
+                damaged, oversized or newer-version file stops the delete
+                before anything is written (T-03-16) -- or could not be
+                written. Deleting the last profile writes an empty
+                "profiles" list rather than removing the file.
+        """
+        by_key = {profile_name_key(profile.name): profile for profile in self.load_all()}
+
+        key = profile_name_key(name)
+        if key not in by_key:
+            raise ProfileNotFoundError(
+                f"There is no saved profile named '{name}'. It may have been renamed or deleted."
+            )
+        del by_key[key]
+        self._write_all(by_key.values())
+
     def _write_all(self, profiles: Iterable[Profile]) -> None:
         """Atomically replace profiles.json with exactly these profiles.
 

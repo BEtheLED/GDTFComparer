@@ -286,3 +286,142 @@ def test_renaming_loaded_profile_keeps_not_found_report_under_new_name(
             missing=2, total=5, name="Wash Spec", names="Pan, Tilt"
         )
     )
+
+
+# ---------------------------------------------------------------------------
+# Task 2: Delete…
+# ---------------------------------------------------------------------------
+
+
+def test_manage_menu_lists_rename_then_delete(qtbot, tmp_path):
+    window = _build_window(qtbot, tmp_path, [("Basic", BASIC_PAIRS)])
+
+    assert [action.text() for action in window.manage_profile_menu.actions()] == [
+        main_window_module.RENAME_PROFILE_LABEL,
+        main_window_module.DELETE_PROFILE_LABEL,
+    ]
+
+    window.profile_combo.setCurrentIndex(0)
+    assert window.delete_profile_action.isEnabled() is True
+    assert window.rename_profile_action.isEnabled() is True
+
+    window.profile_combo.setCurrentIndex(-1)
+    assert window.delete_profile_action.isEnabled() is False
+    assert window.rename_profile_action.isEnabled() is False
+
+
+def test_delete_asks_first_and_no_keeps_profile(qtbot, tmp_path, monkeypatch):
+    window = _build_window(qtbot, tmp_path, [("Basic", BASIC_PAIRS)])
+    _select(window, "Basic")
+    original_bytes = open(window.profile_repository.path, "rb").read()
+    original_items = [
+        window.profile_combo.itemText(i) for i in range(window.profile_combo.count())
+    ]
+
+    confirm_calls = []
+
+    def _confirm_no(message):
+        confirm_calls.append(message)
+        return False
+
+    monkeypatch.setattr(window, "_confirm", _confirm_no)
+    window.delete_profile_action.trigger()
+
+    assert confirm_calls == [main_window_module.DELETE_PROFILE_TEMPLATE.format(name="Basic")]
+    assert open(window.profile_repository.path, "rb").read() == original_bytes
+    assert [
+        window.profile_combo.itemText(i) for i in range(window.profile_combo.count())
+    ] == original_items
+
+
+def test_delete_yes_removes_from_dropdown_and_disk_and_keeps_selection(
+    qtbot, make_gdtf, tmp_path, monkeypatch
+):
+    target, comparison = _lacking_files(make_gdtf)
+    window = _build_window(
+        qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS), ("Basic", BASIC_PAIRS)]
+    )
+    _run(qtbot, window, target, comparison)
+    _load_profile_named(qtbot, window, "Moving Head Spec")
+    checked_before = window.attribute_picker.checked_attributes()
+
+    _select(window, "Basic")
+    monkeypatch.setattr(window, "_confirm", lambda message: True)
+    window.delete_profile_action.trigger()
+
+    assert [
+        window.profile_combo.itemText(i) for i in range(window.profile_combo.count())
+    ] == ["Moving Head Spec"]
+    assert window.profile_combo.currentIndex() == -1
+    assert window.manage_profile_button.isEnabled() is False
+    assert (
+        window.statusBar().currentMessage()
+        == main_window_module.PROFILE_DELETED_TEMPLATE.format(name="Basic")
+    )
+    assert window.attribute_picker.checked_attributes() == checked_before
+
+    base_dir = os.path.dirname(window.profile_repository.path)
+    fresh_repo = ProfileRepository(base_dir=base_dir)
+    fresh_window = MainWindow(profile_repository=fresh_repo)
+    qtbot.addWidget(fresh_window)
+    assert [
+        fresh_window.profile_combo.itemText(i) for i in range(fresh_window.profile_combo.count())
+    ] == ["Moving Head Spec"]
+
+
+def test_deleting_loaded_profile_stops_not_found_report(qtbot, make_gdtf, tmp_path, monkeypatch):
+    target, comparison = _lacking_files(make_gdtf)
+    window = _build_window(qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS)])
+    _run(qtbot, window, target, comparison)
+    _load_profile_named(qtbot, window, "Moving Head Spec")
+
+    assert (
+        window.statusBar().currentMessage()
+        == main_window_module.PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+            missing=2, total=5, name="Moving Head Spec", names="Pan, Tilt"
+        )
+    )
+
+    checked_before = window.attribute_picker.checked_attributes()
+    monkeypatch.setattr(window, "_confirm", lambda message: True)
+    window.delete_profile_action.trigger()
+
+    assert window._active_profile is None
+    assert window.attribute_picker.checked_attributes() == checked_before
+    window._show_result_status()
+    assert (
+        window.statusBar().currentMessage()
+        == f"Compared 1 file(s) against {os.path.basename(str(target))}"
+    )
+
+
+def test_deleting_last_profile_disables_dropdown(qtbot, tmp_path, monkeypatch):
+    window = _build_window(qtbot, tmp_path, [("Basic", BASIC_PAIRS)])
+    _select(window, "Basic")
+    monkeypatch.setattr(window, "_confirm", lambda message: True)
+
+    window.delete_profile_action.trigger()
+
+    assert window.profile_combo.isEnabled() is False
+    assert window.profile_combo.placeholderText() == main_window_module.NO_PROFILES_PLACEHOLDER
+    assert window.manage_profile_button.isEnabled() is False
+
+
+def test_delete_with_damaged_file_shows_error_and_keeps_file(
+    qtbot, tmp_path, monkeypatch, capture_dialogs
+):
+    window = _build_window(qtbot, tmp_path, [("Basic", BASIC_PAIRS)])
+    _select(window, "Basic")
+
+    with open(window.profile_repository.path, "w", encoding="utf-8") as fh:
+        fh.write("{not json")
+
+    monkeypatch.setattr(window, "_confirm", lambda message: True)
+    window.delete_profile_action.trigger()
+
+    assert len(capture_dialogs) == 1
+    text, text_format = capture_dialogs[0]
+    assert "damaged" in text
+    assert text_format == Qt.TextFormat.PlainText
+    with open(window.profile_repository.path, "r", encoding="utf-8") as fh:
+        assert fh.read() == "{not json"

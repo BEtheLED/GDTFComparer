@@ -98,9 +98,12 @@ OVERWRITE_PROFILE_TEMPLATE = (
 MANAGE_PROFILES_LABEL = "Manage"
 MANAGE_PROFILES_TOOLTIP = "Rename or delete the profile shown in the list"
 RENAME_PROFILE_LABEL = "Rename…"
+DELETE_PROFILE_LABEL = "Delete…"
 RENAME_PROFILE_TITLE = "Rename Compare Profile"
 RENAME_PROFILE_PROMPT = "New name for '{name}':"
 PROFILE_RENAMED_TEMPLATE = "Renamed profile '{old}' to '{new}'."
+DELETE_PROFILE_TEMPLATE = "Delete the profile '{name}'? This can't be undone."
+PROFILE_DELETED_TEMPLATE = "Deleted profile '{name}'."
 
 # Status bar message shown when a loaded profile has checked spec items that
 # no file in the current comparison has a row for -- i.e. no file is loaded
@@ -297,6 +300,8 @@ class MainWindow(QMainWindow):
         self.manage_profile_menu = QMenu(self.manage_profile_button)
         self.rename_profile_action = self.manage_profile_menu.addAction(RENAME_PROFILE_LABEL)
         self.rename_profile_action.triggered.connect(self._rename_selected_profile)
+        self.delete_profile_action = self.manage_profile_menu.addAction(DELETE_PROFILE_LABEL)
+        self.delete_profile_action.triggered.connect(self._delete_selected_profile)
         self.manage_profile_button.setMenu(self.manage_profile_menu)
         self.profile_row.addWidget(self.manage_profile_button)
 
@@ -789,6 +794,7 @@ class MainWindow(QMainWindow):
         has_selection = self.profile_combo.isEnabled() and self.profile_combo.currentIndex() >= 0
         self.manage_profile_button.setEnabled(has_selection)
         self.rename_profile_action.setEnabled(has_selection)
+        self.delete_profile_action.setEnabled(has_selection)
 
     def _rename_selected_profile(self) -> None:
         """Rename the profile currently shown in the dropdown (D-05).
@@ -829,6 +835,40 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(
             PROFILE_RENAMED_TEMPLATE.format(old=old_name, new=profile.name)
         )
+
+    def _delete_selected_profile(self) -> None:
+        """Delete the profile currently shown in the dropdown, after asking (D-05).
+
+        Asks "Delete the profile '<name>'? This can't be undone." first,
+        defaulting to No (T-03-14): answering No or closing the dialog
+        leaves the profile untouched. Yes removes it from the dropdown and
+        from profiles.json for good. Never touches the checked attributes
+        or the current comparison table -- only the dropdown and, when the
+        deleted profile is the one currently loaded, self._active_profile
+        (cleared, so the D-06 not-found report stops naming a profile that
+        no longer exists, D-06).
+        """
+        index = self.profile_combo.currentIndex()
+        if index < 0:
+            return
+        name = self.profile_combo.itemText(index)
+
+        if not self._confirm(DELETE_PROFILE_TEMPLATE.format(name=name)):
+            return
+
+        try:
+            self.profile_repository.delete(name)
+        except ProfileError as exc:
+            self._show_error(str(exc))
+            return
+
+        if self._active_profile is not None and profile_name_key(
+            self._active_profile.name
+        ) == profile_name_key(name):
+            self._active_profile = None
+
+        self._refresh_profile_combo()
+        self.statusBar().showMessage(PROFILE_DELETED_TEMPLATE.format(name=name))
 
     def _ask_profile_name(self, title: str, label: str, default_text: str = "") -> Optional[str]:
         """Prompt for a profile name.
