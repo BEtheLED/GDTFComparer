@@ -108,7 +108,7 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/3 plans executed
 
 Plans:
 **Wave 1**
@@ -117,7 +117,7 @@ Plans:
 
 **Wave 2** *(blocked on 03-01)*
 
-- [ ] 03-02-PLAN.md — D-06: a loaded profile's spec items that no current file has are named in the status bar ("N of M spec items … weren't found in these files: …"), re-checked after every re-run, honest before a comparison, with "Show differences only" and for empty profiles (wave 2)
+- [x] 03-02-PLAN.md — D-06: a loaded profile's spec items that no current file has are named in the status bar ("N of M spec items … weren't found in these files: …"), re-checked after every re-run, honest before a comparison, with "Show differences only" and for empty profiles (wave 2)
 
 **Wave 3** *(blocked on 03-02)*
 
@@ -163,6 +163,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 1/3 | In Progress|  |
+| 3. Compare Profiles & Export | 2/3 | In Progress|  |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
