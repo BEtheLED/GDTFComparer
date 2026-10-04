@@ -422,3 +422,30 @@ class ProfileRepository:
                     os.remove(tmp_path)
                 except OSError:
                     pass
+
+
+def missing_attributes(
+    profile_attributes: Iterable[AttributePair], available_pairs: Iterable[AttributePair]
+) -> FrozenSet[AttributePair]:
+    """Return which of profile_attributes are absent from available_pairs (D-06).
+
+    Parameters:
+        profile_attributes: The loaded profile's checked (category,
+            attribute) pairs -- the spec sheet being evaluated.
+        available_pairs: Every (category, attribute) the CURRENT comparison
+            actually has a row for. Callers MUST flatten this from the
+            current result's core.comparator.attribute_catalog(result), never
+            from gui.attribute_picker.AttributePicker._known -- that set is a
+            sticky superset across comparison runs (RESEARCH Pitfall 1) and
+            comparing against it would undercount items genuinely missing
+            from the files currently loaded. This function takes no Catalog
+            type dependency, so core stays independent of the picker.
+
+    Returns:
+        The subset of profile_attributes with no matching entry in
+        available_pairs, as a frozenset. Empty when every profile_attributes
+        item was found. Accepts a list or a set for either argument; neither
+        input is mutated.
+    """
+    available = frozenset(available_pairs)
+    return frozenset(pair for pair in profile_attributes if pair not in available)

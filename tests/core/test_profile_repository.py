@@ -19,6 +19,7 @@ from gdtf_comparer.core.profile_repository import (
     MAX_PROFILES_FILE_BYTES,
     ProfileRepository,
     app_data_dir,
+    missing_attributes,
 )
 
 
@@ -289,3 +290,27 @@ def test_failed_temp_write_leaves_no_temp(tmp_path, monkeypatch):
     assert isinstance(exc_info.value.__cause__, OSError)
     assert (tmp_path / "profiles.json").read_bytes() == original_bytes
     assert sorted(os.listdir(tmp_path)) == ["profiles.json"]
+
+
+def test_missing_attributes():
+    a = ("Beam", "BeamAngle")
+    b = ("Beam", "FieldAngle")
+    c = ("Physical Properties", "Weight")
+    x = ("DMX: Position", "Pan")
+
+    profile = {a, b, c}
+    available = {b, x}
+
+    result = missing_attributes(profile, available)
+    assert result == frozenset({a, c})
+    # Inputs are unchanged afterwards.
+    assert profile == {a, b, c}
+    assert available == {b, x}
+
+    assert missing_attributes(frozenset(), available) == frozenset()
+    assert missing_attributes(profile, profile) == frozenset()
+    assert missing_attributes(profile, frozenset()) == frozenset(profile)
+
+    # Accepts a list or a set for either argument.
+    assert missing_attributes([a, b], [b]) == frozenset({a})
+    assert missing_attributes({a, b}, [b]) == frozenset({a})

@@ -36,7 +36,12 @@ from PySide6.QtWidgets import (
 from gdtf_comparer.core.comparator import attribute_catalog
 from gdtf_comparer.core.errors import ProfileError, ProfileStorageError
 from gdtf_comparer.core.models import ComparisonResult
-from gdtf_comparer.core.profile_repository import Profile, ProfileRepository, normalize_profile_name
+from gdtf_comparer.core.profile_repository import (
+    Profile,
+    ProfileRepository,
+    missing_attributes,
+    normalize_profile_name,
+)
 from gdtf_comparer.gui.attribute_picker import AttributePicker
 from gdtf_comparer.gui.table_model import (
     AttributeSelectionProxyModel,
@@ -80,6 +85,27 @@ SAVE_PROFILE_TOOLTIP = "Save the attributes checked below as a named compare pro
 PROFILE_SAVED_TEMPLATE = "Saved profile '{name}' ({count} attributes)."
 OVERWRITE_PROFILE_TEMPLATE = (
     "A profile named '{name}' already exists. Replace it with the attributes checked now?"
+)
+
+# Status bar message shown when a loaded profile has checked spec items that
+# no file in the current comparison has a row for -- i.e. no file is loaded
+# at all, or the loaded files simply lack the item (Phase 3 D-06). This is
+# the highest-precedence branch inside _show_result_status, ahead of
+# NO_ATTRIBUTES_SELECTED_MESSAGE: the spec items in question ARE checked,
+# just absent from these particular files, so reporting "no attributes
+# selected" would be misleading.
+PROFILE_ITEMS_NOT_FOUND_TEMPLATE = (
+    "{missing} of {total} spec items in '{name}' weren't found in these files: {names}."
+)
+
+# Status bar message shown when a profile is loaded before any comparison
+# has finished (RESEARCH Pitfall 2): there is no current result to check the
+# profile's spec items against yet, so D-06's not-found report cannot run.
+# Written directly by _load_selected_profile, not by _show_result_status,
+# since that method returns early while table_model.result() is None.
+PROFILE_LOADED_NO_RESULT_TEMPLATE = (
+    "Loaded profile '{name}' ({count} spec items). Run a comparison to check "
+    "them against your files."
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -497,20 +523,85 @@ class MainWindow(QMainWindow):
             self._fit_columns_to_contents()
         self._show_result_status()
 
+    def _profile_items_not_found_message(self, result: ComparisonResult) -> Optional[str]:
+        """Return the D-06 "not found" message for the active profile, or None.
+
+        Parameters:
+            result: The CURRENT comparison result. available is computed
+                fresh from this result's attribute_catalog on every call --
+                never from gui.attribute_picker.AttributePicker._known, which
+                is a sticky superset across comparison runs and would
+                undercount items genuinely absent from these files (RESEARCH
+                Pitfall 1). This method only reads state; it never changes
+                the checked set, the rendered rows or result itself, and it
+                is recomputed every time _show_result_status runs -- i.e.
+                after every selection change and every re-run.
+
+        Returns:
+            None when no profile is loaded (self._active_profile is None),
+            when the profile's checked spec items are empty, or when every
+            one of them has a row in result's catalog. Otherwise
+            PROFILE_ITEMS_NOT_FOUND_TEMPLATE filled in with how many of how
+            many spec items are missing, the profile's name, and the missing
+            attribute names (category omitted) sorted by (category,
+            attribute) and joined with ", ".
+        """
+        if self._active_profile is None:
+            return None
+
+        spec = self._active_profile.attributes & self.attribute_picker.checked_attributes()
+        if not spec:
+            return None
+
+        available = frozenset(
+            (category, attribute)
+            for category, attributes in attribute_catalog(result)
+            for attribute in attributes
+        )
+        missing = missing_attributes(spec, available)
+        if not missing:
+            return None
+
+        return PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+            missing=len(missing),
+            total=len(spec),
+            name=self._active_profile.name,
+            names=", ".join(attribute for _, attribute in sorted(missing)),
+        )
+
     def _show_result_status(self) -> None:
         """Show the status bar message matching the current result/selection.
 
         The single place that writes the result status: does nothing while
-        no result is loaded, shows NO_ATTRIBUTES_SELECTED_MESSAGE when the
-        result has rows but none are currently selected (that case keeps
-        precedence over the differences-only case), shows
-        NO_DIFFERENCES_MESSAGE when "Show differences only" is ticked and
-        every selected row agrees with the target, otherwise the normal
-        "Compared N file(s)..." summary (Phase 2 D-06).
+        no result is loaded. The highest-precedence case is Phase 3 D-06's
+        "spec items not found" report (_profile_items_not_found_message):
+        when it applies, it is shown alone, or combined with
+        NO_DIFFERENCES_MESSAGE when "Show differences only" also empties the
+        table -- this replaces NO_ATTRIBUTES_SELECTED_MESSAGE in that case,
+        since the profile's spec items ARE checked, just absent from these
+        files, so "no attributes selected" would be misleading. Below that,
+        NO_ATTRIBUTES_SELECTED_MESSAGE when the result has rows but none are
+        currently selected, then NO_DIFFERENCES_MESSAGE when "Show
+        differences only" is ticked and every selected row agrees with the
+        target, otherwise the normal "Compared N file(s)..." summary (Phase
+        2 D-06).
         """
         result = self.table_model.result()
         if result is None:
             return
+
+        not_found = self._profile_items_not_found_message(result)
+        if not_found is not None:
+            if (
+                self.differences_proxy.differences_only()
+                and self.selection_proxy.rowCount() > 0
+                and self.differences_proxy.rowCount() == 0
+            ):
+                self.statusBar().showMessage(f"{not_found} {NO_DIFFERENCES_MESSAGE}")
+            else:
+                self.statusBar().showMessage(not_found)
+            return
+
         if self.table_model.rowCount() > 0 and self.selection_proxy.rowCount() == 0:
             self.statusBar().showMessage(NO_ATTRIBUTES_SELECTED_MESSAGE)
             return
@@ -711,7 +802,14 @@ class MainWindow(QMainWindow):
         AttributePicker.set_checked(), which fires selection_changed exactly
         once; the existing selection_changed -> _apply_attribute_selection
         chain then re-filters the table, refits columns and refreshes the
-        status message -- this method never duplicates that work.
+        status message -- this method never duplicates that work, EXCEPT
+        before a comparison has ever finished (table_model.result() is
+        None, RESEARCH Pitfall 2): in that state _show_result_status returns
+        immediately without writing anything, since there is no current
+        result to check the profile's spec items against, so this method
+        writes PROFILE_LOADED_NO_RESULT_TEMPLATE itself to tell the user to
+        run a comparison instead of guessing. D-06's not-found report never
+        appears without a current result.
         """
         if index < 0:
             return
@@ -725,6 +823,20 @@ class MainWindow(QMainWindow):
 
         self._active_profile = profile
         self.attribute_picker.set_checked(profile.attributes)
+        if self.table_model.result() is None:
+            # No comparison has finished yet (or one is running): there is
+            # no current result to check the profile's spec items against,
+            # so tell the user to run one instead of guessing (RESEARCH
+            # Pitfall 2). Once a result exists, the coalesced
+            # selection_changed set_checked() just emitted reaches
+            # _apply_attribute_selection -> _show_result_status, which owns
+            # the status bar from then on and must not be second-guessed
+            # here.
+            self.statusBar().showMessage(
+                PROFILE_LOADED_NO_RESULT_TEMPLATE.format(
+                    name=profile.name, count=len(profile.attributes)
+                )
+            )
 
     def _show_error(self, message: str) -> None:
         """Show a friendly modal, plain-text error dialog.
