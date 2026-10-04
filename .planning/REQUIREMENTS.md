@@ -16,7 +16,7 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 - [x] **ATTR-01**: User can browse/search the full set of GDTF attributes (60+ properties) for a fixture, not just the two hardcoded categories (Beam, Physical Properties)
 - [x] **ATTR-02**: User can select which attributes to include in a comparison via search/filter
-- [ ] **ATTR-03**: User can save/name a subset of selected attributes as a reusable "compare profile" and reload it for future comparisons
+- [x] **ATTR-03**: User can save/name a subset of selected attributes as a reusable "compare profile" and reload it for future comparisons
 
 ### Comparison
 
@@ -73,7 +73,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PARSE-02 | Phase 5 | Pending |
 | ATTR-01 | Phase 2 | Complete |
 | ATTR-02 | Phase 2 | Complete |
-| ATTR-03 | Phase 3 | Pending |
+| ATTR-03 | Phase 3 | Complete |
 | DIFF-01 | Phase 2 | Complete |
 | UI-01 | Phase 1 | Complete |
 | UI-02 | Phase 1 | Complete |
