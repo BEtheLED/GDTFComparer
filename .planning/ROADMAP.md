@@ -108,7 +108,7 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 2/3 plans executed
+**Plans**: 3/3 plans executed
 
 Plans:
 **Wave 1**
@@ -121,7 +121,7 @@ Plans:
 
 **Wave 3** *(blocked on 03-02)*
 
-- [ ] 03-03-PLAN.md — D-05: Manage menu in the same row (D-07) with Rename… (conflicts refused) and Delete… (asks first, default No); selection and comparison never touched; end-of-phase human check (wave 3)
+- [x] 03-03-PLAN.md — D-05: Manage menu in the same row (D-07) with Rename… (conflicts refused) and Delete… (asks first, default No); selection and comparison never touched; end-of-phase human check (wave 3)
 
 **Scope note (2026-10-04):** CSV export (formerly EXPORT-01/EXPORT-02) was dropped from this phase per the Phase 3 discussion scope flag — see REQUIREMENTS.md "Out of Scope".
 
@@ -163,6 +163,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 2/3 | In Progress|  |
+| 3. Compare Profiles & Export | 3/3 | In Progress|  |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
