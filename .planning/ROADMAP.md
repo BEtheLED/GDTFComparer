@@ -108,7 +108,20 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Tracer: Save… the checked attributes as a named profile into one atomic, Qt-free profiles.json (core/profile_repository.py), reopen the app, pick it from the Profiles dropdown in the Attributes panel, and it replaces the checked set (D-02, D-03, D-07); D-04 overwrite confirm, name rules, damaged-file / failed-write safety (wave 1)
+
+**Wave 2** *(blocked on 03-01)*
+
+- [ ] 03-02-PLAN.md — D-06: a loaded profile's spec items that no current file has are named in the status bar ("N of M spec items … weren't found in these files: …"), re-checked after every re-run, honest before a comparison, with "Show differences only" and for empty profiles (wave 2)
+
+**Wave 3** *(blocked on 03-02)*
+
+- [ ] 03-03-PLAN.md — D-05: Manage menu in the same row (D-07) with Rename… (conflicts refused) and Delete… (asks first, default No); selection and comparison never touched; end-of-phase human check (wave 3)
 
 **Scope note (2026-10-04):** CSV export (formerly EXPORT-01/EXPORT-02) was dropped from this phase per the Phase 3 discussion scope flag — see REQUIREMENTS.md "Out of Scope".
 
@@ -150,6 +163,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 0/TBD | Not started | - |
+| 3. Compare Profiles & Export | 0/3 | Planned | - |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
