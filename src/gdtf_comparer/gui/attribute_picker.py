@@ -13,7 +13,7 @@ leaves the search is currently hiding. Manual expand/collapse of a section
 lasts until the next rebuild or search change.
 """
 
-from typing import FrozenSet, Optional, Set, Tuple
+from typing import FrozenSet, Iterable, Optional, Set, Tuple
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import QLineEdit, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
@@ -63,6 +63,12 @@ class AttributePicker(QWidget):
         self._checked: Set[AttributePair] = set()
         self._default_categories: FrozenSet[str] = frozenset(DEFAULT_SELECTED_CATEGORIES)
         self._rebuilding = False
+        # Phase 3 D-01/D-03: once a compare profile has been loaded via
+        # set_checked(), Phase 2's D-04 first-use defaults stop seeding new
+        # pairs for the rest of the session. Without this, a comparison run
+        # after loading a spec sheet would silently widen it with the Beam /
+        # Physical Properties defaults, which D-03's replace semantics forbid.
+        self._defaults_enabled = True
 
         self._emit_timer = QTimer(self)
         self._emit_timer.setSingleShot(True)
@@ -80,18 +86,23 @@ class AttributePicker(QWidget):
 
         Seeds D-04's first-use default: every (category, attribute) pair not
         yet known is added to the known set, and also checked when its
-        category is in DEFAULT_SELECTED_CATEGORIES. A pair already known
-        keeps the user's prior choice, including one missing from this
-        catalog (it gets its old state back if its files return later). This
-        never emits selection_changed -- the caller applies the selection
-        itself after calling this.
+        category is in DEFAULT_SELECTED_CATEGORIES -- but only while
+        self._defaults_enabled is True. Once a compare profile has been
+        loaded via set_checked() (Phase 3 D-01, D-03), default seeding stops
+        for the rest of the session: a pair seen for the first time later
+        joins the picker unchecked, so a loaded spec sheet is never silently
+        widened by a later comparison's Beam / Physical Properties defaults.
+        A pair already known keeps the user's prior choice, including one
+        missing from this catalog (it gets its old state back if its files
+        return later). This never emits selection_changed -- the caller
+        applies the selection itself after calling this.
         """
         for category, attributes in catalog:
             for attribute in attributes:
                 pair = (category, attribute)
                 if pair not in self._known:
                     self._known.add(pair)
-                    if category in self._default_categories:
+                    if self._defaults_enabled and category in self._default_categories:
                         self._checked.add(pair)
 
         self._rebuilding = True
@@ -132,6 +143,50 @@ class AttributePicker(QWidget):
     def checked_attributes(self) -> FrozenSet[AttributePair]:
         """Return the currently checked (category, attribute) set."""
         return frozenset(self._checked)
+
+    def set_checked(self, pairs: Iterable[AttributePair]) -> None:
+        """Replace the checked set wholesale (D-03: a profile load replaces, never merges).
+
+        Parameters:
+            pairs: The (category, attribute) pairs to check. Every pair not
+                in this set becomes unchecked, including anything the user
+                had checked by hand or a prior profile load.
+
+        A pair not yet present in the current tree (not in self._known) is
+        still recorded in self._checked and renders checked automatically
+        the first time a later catalog includes it (set_catalog's existing
+        "pair already known keeps its state" bookkeeping, unchanged by this
+        method). After this call, Phase 2 D-04's first-use defaults stop for
+        the rest of the session (self._defaults_enabled = False), so a later
+        comparison's never-seen-before attributes join the picker unchecked
+        instead of silently widening a loaded spec sheet (D-01).
+
+        Emits selection_changed via the same coalescing timer as a manual
+        checkbox edit, exactly once, so a profile load drives the identical
+        downstream path (MainWindow._apply_attribute_selection) as a user
+        click.
+        """
+        self._checked = {tuple(pair) for pair in pairs}
+        self._defaults_enabled = False
+
+        self._rebuilding = True
+        self.tree.blockSignals(True)
+        try:
+            for section_index in range(self.tree.topLevelItemCount()):
+                section = self.tree.topLevelItem(section_index)
+                for child_index in range(section.childCount()):
+                    leaf = section.child(child_index)
+                    pair = tuple(leaf.data(0, _PAYLOAD_ROLE))
+                    leaf.setCheckState(
+                        0,
+                        Qt.CheckState.Checked if pair in self._checked else Qt.CheckState.Unchecked,
+                    )
+        finally:
+            self.tree.blockSignals(False)
+            self._rebuilding = False
+
+        self._apply_search()
+        self._emit_timer.start()
 
     def section_item(self, category: str) -> Optional[QTreeWidgetItem]:
         """Return the top-level tree item for category, or None."""

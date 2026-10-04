@@ -21,6 +21,9 @@ APPROVED_CORE_SURFACE = {
     "gdtf_comparer.core.comparator",
     "gdtf_comparer.core.models",
     "gdtf_comparer.core.errors",
+    # Phase 3 compare-profile store (ATTR-03): a GUI-facing core service,
+    # the same way gui/ already calls core.comparator directly.
+    "gdtf_comparer.core.profile_repository",
 }
 
 NETWORK_MODULE_TOP_LEVELS = {

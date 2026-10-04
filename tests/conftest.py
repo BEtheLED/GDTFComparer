@@ -151,3 +151,24 @@ def make_gdtf(tmp_path):
         return archive_path
 
     return _make
+
+
+@pytest.fixture(autouse=True)
+def _isolate_profile_storage(tmp_path, monkeypatch):
+    """Redirect the default compare-profiles folder into tmp_path.
+
+    No test may read or write the real per-user profiles folder: this
+    autouse fixture monkeypatches gdtf_comparer.core.profile_repository's
+    _default_profiles_dir() to return a path inside tmp_path, for every test
+    in the suite, whether or not it touches profiles directly. It must not
+    create the folder itself, since tests/core/test_repository.py::
+    test_load_writes_nothing_to_disk compares tmp_path directory listings
+    before and after an unrelated FixtureRepository.load() call.
+    """
+    import gdtf_comparer.core.profile_repository as profile_repository_module
+
+    monkeypatch.setattr(
+        profile_repository_module,
+        "_default_profiles_dir",
+        lambda: str(tmp_path / "gdtf-comparer-app-data"),
+    )

@@ -56,7 +56,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         # once the event loop has already ended (closeEvent's bounded wait,
         # CLOSE_WAIT_TIMEOUT_MS, gave up on a stuck worker) -- normal closes
         # never reach here. Nothing is lost by skipping the rest of normal
-        # shutdown: core never writes to disk (T-01-15).
+        # shutdown: comparison work never writes to disk (T-01-15), and any
+        # compare-profile save (core.profile_repository, Phase 3) runs
+        # synchronously on the GUI thread and finishes -- atomically -- well
+        # before the event loop returns, so this path can never cut one
+        # short.
         _LOGGER.warning(
             "Comparison worker still running at shutdown; exiting the "
             "process directly instead of risking a Qt abort."
