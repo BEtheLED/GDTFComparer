@@ -25,10 +25,12 @@ from PySide6.QtWidgets import (
     QListWidget,
     QListWidgetItem,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QSplitter,
     QTableView,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -41,6 +43,7 @@ from gdtf_comparer.core.profile_repository import (
     ProfileRepository,
     missing_attributes,
     normalize_profile_name,
+    profile_name_key,
 )
 from gdtf_comparer.gui.attribute_picker import AttributePicker
 from gdtf_comparer.gui.table_model import (
@@ -86,6 +89,21 @@ PROFILE_SAVED_TEMPLATE = "Saved profile '{name}' ({count} attributes)."
 OVERWRITE_PROFILE_TEMPLATE = (
     "A profile named '{name}' already exists. Replace it with the attributes checked now?"
 )
+
+# Manage button + menu (Phase 3 D-05, D-07): sits in the same profile row as
+# the dropdown and Save…, offering Rename… (and, from Plan 03-03 Task 2,
+# Delete…) for whichever profile is currently shown in the dropdown. Disabled
+# until a profile is shown there (RESEARCH Pitfall 3 carried over: the menu
+# acts on the dropdown's current selection, never triggers a load itself).
+MANAGE_PROFILES_LABEL = "Manage"
+MANAGE_PROFILES_TOOLTIP = "Rename or delete the profile shown in the list"
+RENAME_PROFILE_LABEL = "Rename…"
+DELETE_PROFILE_LABEL = "Delete…"
+RENAME_PROFILE_TITLE = "Rename Compare Profile"
+RENAME_PROFILE_PROMPT = "New name for '{name}':"
+PROFILE_RENAMED_TEMPLATE = "Renamed profile '{old}' to '{new}'."
+DELETE_PROFILE_TEMPLATE = "Delete the profile '{name}'? This can't be undone."
+PROFILE_DELETED_TEMPLATE = "Deleted profile '{name}'."
 
 # Status bar message shown when a loaded profile has checked spec items that
 # no file in the current comparison has a row for -- i.e. no file is loaded
@@ -274,6 +292,24 @@ class MainWindow(QMainWindow):
         self.save_profile_button.setToolTip(SAVE_PROFILE_TOOLTIP)
         self.save_profile_button.clicked.connect(self._save_profile)
         self.profile_row.addWidget(self.save_profile_button)
+
+        self.manage_profile_button = QToolButton(self.attributes_group)
+        self.manage_profile_button.setText(MANAGE_PROFILES_LABEL)
+        self.manage_profile_button.setToolTip(MANAGE_PROFILES_TOOLTIP)
+        self.manage_profile_button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.manage_profile_menu = QMenu(self.manage_profile_button)
+        self.rename_profile_action = self.manage_profile_menu.addAction(RENAME_PROFILE_LABEL)
+        self.rename_profile_action.triggered.connect(self._rename_selected_profile)
+        self.delete_profile_action = self.manage_profile_menu.addAction(DELETE_PROFILE_LABEL)
+        self.delete_profile_action.triggered.connect(self._delete_selected_profile)
+        self.manage_profile_button.setMenu(self.manage_profile_menu)
+        self.profile_row.addWidget(self.manage_profile_button)
+
+        # Only toggles enabled state (never loads a profile): the dropdown's
+        # own activated connection (above) is the sole load trigger, so
+        # repopulating the combo after a save/rename/delete never fires a
+        # load through this connection either (RESEARCH Pitfall 3).
+        self.profile_combo.currentIndexChanged.connect(self._update_profile_actions)
 
         attributes_layout.addLayout(self.profile_row)
 
@@ -722,6 +758,7 @@ class MainWindow(QMainWindow):
             self.profile_combo.setEnabled(False)
             self.profile_combo.setPlaceholderText(PROFILES_UNAVAILABLE_PLACEHOLDER)
             self.statusBar().showMessage(str(exc))
+            self._update_profile_actions()
             return
 
         self.profile_combo.clear()
@@ -739,6 +776,99 @@ class MainWindow(QMainWindow):
                     index = candidate_index
                     break
         self.profile_combo.setCurrentIndex(index)
+        self._update_profile_actions()
+
+    def _update_profile_actions(self) -> None:
+        """Enable Manage/Rename only while a profile is shown in the dropdown.
+
+        Connected to profile_combo.currentIndexChanged (never activated):
+        this only toggles enabled state and never loads a profile, so a
+        profile shown in the dropdown without the user choosing it (e.g. a
+        programmatic _refresh_profile_combo(select_name=...) after a save
+        or rename) never fires a load through this connection either
+        (RESEARCH Pitfall 3 carried to the Manage button). Also called
+        directly from _refresh_profile_combo, since the index can stay at
+        -1 across a repopulation, in which case currentIndexChanged never
+        fires.
+        """
+        has_selection = self.profile_combo.isEnabled() and self.profile_combo.currentIndex() >= 0
+        self.manage_profile_button.setEnabled(has_selection)
+        self.rename_profile_action.setEnabled(has_selection)
+        self.delete_profile_action.setEnabled(has_selection)
+
+    def _rename_selected_profile(self) -> None:
+        """Rename the profile currently shown in the dropdown (D-05).
+
+        Prompts for a new name pre-filled with the current one; cancelling
+        leaves everything unchanged. A name already used by a different
+        saved profile (ignoring case, surrounding whitespace and Unicode
+        form) is refused with a friendly message and nothing is written --
+        renaming is never a silent overwrite (T-03-15). Never touches the
+        checked attributes or the current comparison: when the renamed
+        profile is the one currently loaded, only its tracked name is
+        updated, so the D-06 not-found report keeps naming it correctly
+        under the new name instead of stopping or going stale (D-06).
+        """
+        index = self.profile_combo.currentIndex()
+        if index < 0:
+            return
+        old_name = self.profile_combo.itemText(index)
+
+        raw = self._ask_profile_name(
+            RENAME_PROFILE_TITLE, RENAME_PROFILE_PROMPT.format(name=old_name), old_name
+        )
+        if raw is None:
+            return
+
+        try:
+            profile = self.profile_repository.rename(old_name, raw)
+        except ProfileError as exc:
+            self._show_error(str(exc))
+            return
+
+        if self._active_profile is not None and profile_name_key(
+            self._active_profile.name
+        ) == profile_name_key(old_name):
+            self._active_profile = profile
+
+        self._refresh_profile_combo(select_name=profile.name)
+        self.statusBar().showMessage(
+            PROFILE_RENAMED_TEMPLATE.format(old=old_name, new=profile.name)
+        )
+
+    def _delete_selected_profile(self) -> None:
+        """Delete the profile currently shown in the dropdown, after asking (D-05).
+
+        Asks "Delete the profile '<name>'? This can't be undone." first,
+        defaulting to No (T-03-14): answering No or closing the dialog
+        leaves the profile untouched. Yes removes it from the dropdown and
+        from profiles.json for good. Never touches the checked attributes
+        or the current comparison table -- only the dropdown and, when the
+        deleted profile is the one currently loaded, self._active_profile
+        (cleared, so the D-06 not-found report stops naming a profile that
+        no longer exists, D-06).
+        """
+        index = self.profile_combo.currentIndex()
+        if index < 0:
+            return
+        name = self.profile_combo.itemText(index)
+
+        if not self._confirm(DELETE_PROFILE_TEMPLATE.format(name=name)):
+            return
+
+        try:
+            self.profile_repository.delete(name)
+        except ProfileError as exc:
+            self._show_error(str(exc))
+            return
+
+        if self._active_profile is not None and profile_name_key(
+            self._active_profile.name
+        ) == profile_name_key(name):
+            self._active_profile = None
+
+        self._refresh_profile_combo()
+        self.statusBar().showMessage(PROFILE_DELETED_TEMPLATE.format(name=name))
 
     def _ask_profile_name(self, title: str, label: str, default_text: str = "") -> Optional[str]:
         """Prompt for a profile name.
