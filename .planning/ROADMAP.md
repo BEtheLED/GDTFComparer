@@ -108,12 +108,12 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 3 plans
+**Plans**: 1/3 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 03-01-PLAN.md — Tracer: Save… the checked attributes as a named profile into one atomic, Qt-free profiles.json (core/profile_repository.py), reopen the app, pick it from the Profiles dropdown in the Attributes panel, and it replaces the checked set (D-02, D-03, D-07); D-04 overwrite confirm, name rules, damaged-file / failed-write safety (wave 1)
+- [x] 03-01-PLAN.md — Tracer: Save… the checked attributes as a named profile into one atomic, Qt-free profiles.json (core/profile_repository.py), reopen the app, pick it from the Profiles dropdown in the Attributes panel, and it replaces the checked set (D-02, D-03, D-07); D-04 overwrite confirm, name rules, damaged-file / failed-write safety (wave 1)
 
 **Wave 2** *(blocked on 03-01)*
 
@@ -163,6 +163,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 0/3 | Planned | - |
+| 3. Compare Profiles & Export | 1/3 | In Progress|  |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
