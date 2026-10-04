@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation Rebuild** - Spec-correct parsing, decoupled architecture, and a modernized GUI shell replace the old hand-rolled/crash-prone comparer (completed 2026-09-29)
 - [ ] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted
-- [ ] **Phase 3: Compare Profiles & Export** - Users can save reusable attribute selections and export comparison results to CSV
+- [ ] **Phase 3: Compare Profiles** - Users can save and reload reusable attribute selections ("compare profiles") for future comparisons
 - [ ] **Phase 4: Standalone Packaging** - Users can download and run signed/notarized standalone builds on macOS and Windows with no Python install
 - [ ] **Phase 5: MVR-xchange Networking** - Users can discover LAN peers and pull MVR fixture data into the compare workflow, fully optional
 
@@ -98,19 +98,19 @@ Plans:
 
 - [x] 02-03-PLAN.md — DIFF-01: theme-aware tint on each differing comparison cell (delegate-painted, since qt-material suppresses BackgroundRole), live light/dark re-tint, and a "Show differences only" toggle proxy with an empty-result status message (wave 3)
 
-### Phase 3: Compare Profiles & Export
+### Phase 3: Compare Profiles
 
-**Goal**: Users can save reusable attribute selections and get comparison results out of the app for sharing or records.
+**Goal**: Users can save and reload reusable attribute selections ("compare profiles") for future comparisons.
 **Mode:** mvp
 **Depends on**: Phase 2
-**Requirements**: ATTR-03, EXPORT-01, EXPORT-02
+**Requirements**: ATTR-03
 **Success Criteria** (what must be TRUE):
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
-  2. User can export the full comparison table to CSV.
-  3. User can export a diff-only CSV containing just the rows where values actually differ.
 
 **Plans**: TBD
+
+**Scope note (2026-10-04):** CSV export (formerly EXPORT-01/EXPORT-02) was dropped from this phase per the Phase 3 discussion scope flag — see REQUIREMENTS.md "Out of Scope".
 
 ### Phase 4: Standalone Packaging
 

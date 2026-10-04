@@ -1,14 +1,14 @@
 # Phase 3: Compare Profiles & Export - Context
 
 **Gathered:** 2026-09-30
-**Status:** Ready for planning — WITH AN OPEN SCOPE FLAG (see Decisions, Scope Flag section)
+**Status:** Ready for planning — scope flag resolved 2026-10-04 (see Decisions, Scope Flag section)
 
 <domain>
 ## Phase Boundary
 
 Originally: users can save a named subset of selected attributes as a reusable "compare profile" and reload it for future comparisons (ATTR-03), and export comparison results to CSV, both full and diff-only (EXPORT-01, EXPORT-02).
 
-**Scope flag raised during this discussion:** the user does not see a clear need for CSV export and asked to flag EXPORT-01/EXPORT-02 for removal from requirements. This has NOT been applied to REQUIREMENTS.md or ROADMAP.md yet — see the Scope Flag subsection under Decisions. Until that's resolved, treat this phase's confirmed scope as **compare profiles only (ATTR-03)**.
+**Scope flag raised during this discussion, now resolved:** the user did not see a clear need for CSV export and asked to flag EXPORT-01/EXPORT-02 for removal from requirements. On 2026-10-04, at the start of `/gsd-plan-phase 3`, the user confirmed: drop CSV export. EXPORT-01/EXPORT-02 have been removed from REQUIREMENTS.md and Phase 3's ROADMAP.md goal/success-criteria now cover **compare profiles only (ATTR-03)**. This phase's confirmed scope is compare profiles only — all CSV export content below is historical/provisional and does not apply.
 
 </domain>
 
@@ -30,10 +30,10 @@ Originally: users can save a named subset of selected attributes as a reusable "
 ### Button Placement
 - **D-07:** Save and Manage (rename/delete) controls for profiles sit in the same compact toolbar row at the top of the Attributes side panel, alongside the load dropdown — one consolidated location for all profile actions, consistent with D-02's placement for loading.
 
-### Scope Flag — CSV Export (EXPORT-01, EXPORT-02)
+### Scope Flag — CSV Export (EXPORT-01, EXPORT-02) — RESOLVED: DROPPED
 - **D-08:** During discussion the user said "I don't even know why I would need to export" and, when asked directly whether to keep CSV export scoped to this phase or flag it for removal, chose **"Flag it for removal."**
-  - **This has not yet been applied to REQUIREMENTS.md or ROADMAP.md.** Before planning or implementing any export work, confirm with the user whether to (a) formally drop EXPORT-01/EXPORT-02 from REQUIREMENTS.md and shrink Phase 3's roadmap goal/success-criteria to profiles only, or (b) proceed with export as originally scoped after all. Do not silently implement or silently skip CSV export — surface this explicitly.
-  - **If export does proceed after that confirmation,** conditional answers gathered during this discussion (treat as provisional, not locked, since the feature itself is in question):
+  - **Resolved 2026-10-04:** at the start of `/gsd-plan-phase 3`, re-confirmed with the user — chose to drop CSV export. EXPORT-01/EXPORT-02 removed from REQUIREMENTS.md (moved to "Out of Scope"); Phase 3's ROADMAP.md goal/success-criteria shrunk to profiles only. **CSV export is NOT part of this phase's plans.**
+  - The conditional answers below were gathered during the original discussion in case export proceeded; they are kept for historical reference only and must NOT be planned or implemented:
     - CSV includes only the attributes currently checked in the side panel (the user's spec sheet), not a full raw dump of every GDTF property.
     - "Differences only" stays binary (matches / doesn't match), same semantics as Phase 2's on-screen highlighting — no stricter pass/fail or tolerance logic (see the deferred Red/Yellow/Green idea below).
     - The CSV includes identifying info (fixture/file names) near the top, since it may be shared with someone outside the app (a vendor, a colleague) rather than kept purely for in-app use.
@@ -52,7 +52,7 @@ Originally: users can save a named subset of selected attributes as a reusable "
 
 ### Project & Requirements
 - `.planning/PROJECT.md` — core value, constraints (milestone-level)
-- `.planning/REQUIREMENTS.md` — Phase 3 covers ATTR-03, EXPORT-01, EXPORT-02 (see Scope Flag — EXPORT-01/02 status is unresolved as of this discussion)
+- `.planning/REQUIREMENTS.md` — Phase 3 covers ATTR-03 only (EXPORT-01/EXPORT-02 dropped — see Scope Flag, resolved 2026-10-04)
 - `.planning/ROADMAP.md` — Phase 3 goal and success criteria (also affected by the Scope Flag)
 
 ### Prior Phase Decisions

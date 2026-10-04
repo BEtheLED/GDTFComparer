@@ -22,11 +22,6 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 - [x] **DIFF-01**: The comparison table visually highlights which attribute values differ between the target and each comparison file
 
-### Export
-
-- [ ] **EXPORT-01**: User can export the full comparison table results to CSV
-- [ ] **EXPORT-02**: User can export a diff-only CSV containing just the rows where values actually differ
-
 ### Interface
 
 - [x] **UI-01**: App has a modernized, visually refreshed interface (not the stock Tkinter look)
@@ -66,6 +61,7 @@ Explicitly excluded from this project. Documented to prevent scope creep.
 | MVRxchange internet/coordinator-server mode | Requires standing up/trusting a coordinator server plus auth/NAT-traversal complexity; local-network mode covers the stated collaboration use case (professionals on the same show network) |
 | Raw XML diff as the primary comparison UX | Unreadable to the non-developer target audience; structured attribute-table diffing is the whole point of this tool |
 | Blender addon (MVR/GDTF import into Blender) | Parked — separate milestone, not part of this rebuild |
+| CSV export of comparison results (formerly EXPORT-01/EXPORT-02) | Dropped during Phase 3 discussion (2026-09-30) — user had no clear use case ("I don't even know why I would need to export") and chose to flag it for removal rather than build it speculatively |
 
 ## Traceability
 
@@ -79,8 +75,6 @@ Which phases cover which requirements. Updated during roadmap creation.
 | ATTR-02 | Phase 2 | Complete |
 | ATTR-03 | Phase 3 | Pending |
 | DIFF-01 | Phase 2 | Complete |
-| EXPORT-01 | Phase 3 | Pending |
-| EXPORT-02 | Phase 3 | Pending |
 | UI-01 | Phase 1 | Complete |
 | UI-02 | Phase 1 | Complete |
 | RELI-01 | Phase 1 | Complete |
@@ -94,10 +88,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 **Coverage:**
 
-- v1 requirements: 18 total
-- Mapped to phases: 18 (Phase 1: 5, Phase 2: 3, Phase 3: 3, Phase 4: 3, Phase 5: 4)
+- v1 requirements: 16 total
+- Mapped to phases: 16 (Phase 1: 5, Phase 2: 3, Phase 3: 1, Phase 4: 3, Phase 5: 4)
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-25*
-*Last updated: 2026-09-25 after roadmap creation*
+*Last updated: 2026-10-04 — dropped EXPORT-01/EXPORT-02 per Phase 3 discussion scope flag*
