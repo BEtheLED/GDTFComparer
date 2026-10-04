@@ -7,13 +7,19 @@ filesystem path component (RESEARCH Pitfall 4). Every test here uses
 ProfileRepository(base_dir=str(tmp_path)), never the default per-user folder.
 """
 
+import json
 import os
 import sys
 
 import pytest
 
-from gdtf_comparer.core.errors import ProfileNameError
-from gdtf_comparer.core.profile_repository import ProfileRepository, app_data_dir
+from gdtf_comparer.core import profile_repository as profile_repository_module
+from gdtf_comparer.core.errors import ProfileNameError, ProfileStorageError
+from gdtf_comparer.core.profile_repository import (
+    MAX_PROFILES_FILE_BYTES,
+    ProfileRepository,
+    app_data_dir,
+)
 
 
 def test_save_and_load_round_trip(tmp_path):
@@ -165,3 +171,121 @@ def test_profiles_file_is_owner_only(tmp_path):
 
     mode = os.stat(repo.path).st_mode
     assert mode & 0o077 == 0
+
+
+def test_corrupted_file_raises_typed_error(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(ProfileStorageError) as exc_info:
+        repo.load_all()
+
+    message = str(exc_info.value)
+    assert repo.path in message
+    assert "damaged" in message
+    assert "Traceback" not in message
+    assert isinstance(exc_info.value.__cause__, json.JSONDecodeError)
+
+
+_WRONG_SHAPE_TEXTS = [
+    "[]",
+    '{"version": 1}',
+    '{"version": 1, "profiles": "not-a-list"}',
+    '{"version": 1, "profiles": [1]}',
+    '{"version": 1, "profiles": [{"name": 1, "attributes": []}]}',
+    '{"version": 1, "profiles": [{"name": "   ", "attributes": []}]}',
+    '{"version": 1, "profiles": [{"name": "A", "attributes": "not-a-list"}]}',
+    '{"version": 1, "profiles": [{"name": "A", "attributes": [["a", "b", "c"]]}]}',
+    '{"version": 1, "profiles": [{"name": "A", "attributes": [["a", 1]]}]}',
+    (
+        '{"version": 1, "profiles": ['
+        '{"name": "A", "attributes": []}, {"name": "a", "attributes": []}]}'
+    ),
+    '{"version": true, "profiles": []}',
+    '{"version": "1", "profiles": []}',
+]
+
+
+@pytest.mark.parametrize("text", _WRONG_SHAPE_TEXTS)
+def test_wrong_shape_files_raise_typed_error(tmp_path, text):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_text(text, encoding="utf-8")
+
+    with pytest.raises(ProfileStorageError):
+        repo.load_all()
+
+
+def test_newer_version_file_raises_typed_error(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_text(
+        json.dumps({"version": 2, "profiles": []}), encoding="utf-8"
+    )
+
+    with pytest.raises(ProfileStorageError) as exc_info:
+        repo.load_all()
+
+    assert "newer version" in str(exc_info.value)
+
+
+def test_non_utf8_and_oversized_files_raise_typed_error(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_bytes(b"\xff\xfe\x00")
+
+    with pytest.raises(ProfileStorageError):
+        repo.load_all()
+
+    oversized_dir = tmp_path / "oversized"
+    oversized_dir.mkdir()
+    oversized_repo = ProfileRepository(base_dir=str(oversized_dir))
+    (oversized_dir / "profiles.json").write_bytes(b" " * (MAX_PROFILES_FILE_BYTES + 1))
+
+    with pytest.raises(ProfileStorageError) as exc_info:
+        oversized_repo.load_all()
+    assert "too large" in str(exc_info.value)
+
+
+def test_damaged_file_is_never_overwritten_by_save(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_text("{not json", encoding="utf-8")
+    original_bytes = (tmp_path / "profiles.json").read_bytes()
+
+    with pytest.raises(ProfileStorageError):
+        repo.save("New", [("Beam", "BeamAngle")])
+
+    assert (tmp_path / "profiles.json").read_bytes() == original_bytes
+
+
+def test_failed_replace_keeps_old_file_and_leaves_no_temp(tmp_path, monkeypatch):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("A", {("Beam", "BeamAngle")})
+    original_bytes = (tmp_path / "profiles.json").read_bytes()
+
+    def _boom(*args, **kwargs):
+        raise PermissionError("no permission")
+
+    monkeypatch.setattr(profile_repository_module.os, "replace", _boom)
+
+    with pytest.raises(ProfileStorageError) as exc_info:
+        repo.save("B", {("Beam", "FieldAngle")})
+
+    assert isinstance(exc_info.value.__cause__, PermissionError)
+    assert (tmp_path / "profiles.json").read_bytes() == original_bytes
+    assert sorted(os.listdir(tmp_path)) == ["profiles.json"]
+
+
+def test_failed_temp_write_leaves_no_temp(tmp_path, monkeypatch):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("A", {("Beam", "BeamAngle")})
+    original_bytes = (tmp_path / "profiles.json").read_bytes()
+
+    def _boom(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(profile_repository_module.os, "fsync", _boom)
+
+    with pytest.raises(ProfileStorageError) as exc_info:
+        repo.save("B", {("Beam", "FieldAngle")})
+
+    assert isinstance(exc_info.value.__cause__, OSError)
+    assert (tmp_path / "profiles.json").read_bytes() == original_bytes
+    assert sorted(os.listdir(tmp_path)) == ["profiles.json"]

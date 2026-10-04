@@ -7,6 +7,7 @@ import pytest
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QMessageBox
 
+from gdtf_comparer.core import profile_repository as profile_repository_module
 from gdtf_comparer.core.errors import ProfileNameError
 from gdtf_comparer.core.models import CATEGORY_BEAM, CATEGORY_PHYSICAL
 from gdtf_comparer.core.profile_repository import ProfileRepository, normalize_profile_name
@@ -494,3 +495,70 @@ def test_reloading_same_profile_is_idempotent(qtbot, make_gdtf, tmp_path):
     assert len(emissions) == 2
     assert picker.checked_attributes() == first_checked
     assert window.profile_combo.count() == first_count
+
+
+def test_damaged_profiles_file_at_startup_disables_dropdown_without_crash(
+    qtbot, tmp_path, capture_dialogs
+):
+    profiles_dir = tmp_path / "profiles"
+    profiles_dir.mkdir()
+    (profiles_dir / "profiles.json").write_text("{not json", encoding="utf-8")
+    repo = ProfileRepository(base_dir=str(profiles_dir))
+
+    with pytest.raises(Exception) as exc_info:
+        repo.load_all()
+    expected_message = str(exc_info.value)
+
+    window = MainWindow(profile_repository=repo)
+    qtbot.addWidget(window)
+
+    assert window.profile_combo.isEnabled() is False
+    assert (
+        window.profile_combo.placeholderText()
+        == main_window_module.PROFILES_UNAVAILABLE_PLACEHOLDER
+    )
+    assert window.statusBar().currentMessage() == expected_message
+    assert len(capture_dialogs) == 0
+
+
+def test_save_with_damaged_file_shows_error_and_keeps_file(
+    qtbot, tmp_path, monkeypatch, capture_dialogs
+):
+    profiles_dir = tmp_path / "profiles"
+    profiles_dir.mkdir()
+    (profiles_dir / "profiles.json").write_text("{not json", encoding="utf-8")
+    original_bytes = (profiles_dir / "profiles.json").read_bytes()
+    repo = ProfileRepository(base_dir=str(profiles_dir))
+
+    window = MainWindow(profile_repository=repo)
+    qtbot.addWidget(window)
+
+    monkeypatch.setattr(window, "_ask_profile_name", lambda *a, **k: "X")
+    qtbot.mouseClick(window.save_profile_button, Qt.MouseButton.LeftButton)
+
+    assert len(capture_dialogs) == 1
+    text, text_format = capture_dialogs[0]
+    assert "damaged" in text
+    assert text_format == Qt.TextFormat.PlainText
+    assert (profiles_dir / "profiles.json").read_bytes() == original_bytes
+
+
+def test_failed_save_shows_friendly_error(qtbot, monkeypatch, capture_dialogs):
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    def _boom(*args, **kwargs):
+        raise PermissionError("no permission")
+
+    monkeypatch.setattr(profile_repository_module.os, "replace", _boom)
+    monkeypatch.setattr(window, "_ask_profile_name", lambda *a, **k: "X")
+
+    qtbot.mouseClick(window.save_profile_button, Qt.MouseButton.LeftButton)
+
+    assert len(capture_dialogs) == 1
+    text, text_format = capture_dialogs[0]
+    assert text.startswith("Could not save compare profiles")
+    assert "Traceback" not in text
+    assert text_format == Qt.TextFormat.PlainText
+    assert window.profile_combo.count() == 0
+    assert window._active_profile is None

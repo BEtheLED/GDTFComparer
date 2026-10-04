@@ -34,7 +34,7 @@ from PySide6.QtWidgets import (
 )
 
 from gdtf_comparer.core.comparator import attribute_catalog
-from gdtf_comparer.core.errors import ProfileError
+from gdtf_comparer.core.errors import ProfileError, ProfileStorageError
 from gdtf_comparer.core.models import ComparisonResult
 from gdtf_comparer.core.profile_repository import Profile, ProfileRepository, normalize_profile_name
 from gdtf_comparer.gui.attribute_picker import AttributePicker
@@ -615,8 +615,24 @@ class MainWindow(QMainWindow):
         self.profile_combo.activated is only ever emitted by a user's own
         click/selection, never by clear()/addItem()/setCurrentIndex() below,
         so this is always safe to call after a save.
+
+        A damaged, oversized or newer-version profiles.json (T-03-01) never
+        crashes the app: the combo is disabled with
+        PROFILES_UNAVAILABLE_PLACEHOLDER and the status bar explains why,
+        with no modal dialog (this also runs during __init__, before any
+        window is shown). The Save… button stays enabled, so attempting a
+        save surfaces the same reason through _save_profile's own
+        ProfileError handling.
         """
-        profiles = self.profile_repository.load_all()
+        try:
+            profiles = self.profile_repository.load_all()
+        except ProfileStorageError as exc:
+            self.profile_combo.clear()
+            self.profile_combo.setEnabled(False)
+            self.profile_combo.setPlaceholderText(PROFILES_UNAVAILABLE_PLACEHOLDER)
+            self.statusBar().showMessage(str(exc))
+            return
+
         self.profile_combo.clear()
         for profile in profiles:
             self.profile_combo.addItem(profile.name)

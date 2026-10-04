@@ -177,21 +177,127 @@ class ProfileRepository:
             name, for deterministic output.
 
         Raises:
-            ProfileStorageError: The file exists but could not be read.
+            ProfileStorageError: The file exists but is too large, not
+                valid UTF-8/JSON, an unexpected shape, or was written by a
+                newer version of this app -- never for a missing file.
+                Because save() starts from load_all(), any of these also
+                stops every write before anything is written: a damaged,
+                oversized or newer-version file is never silently replaced.
         """
         if not os.path.exists(self._path):
             return []
-        with open(self._path, "r", encoding="utf-8") as fh:
-            payload = json.load(fh)
+
+        try:
+            with open(self._path, "rb") as fh:
+                raw = fh.read(MAX_PROFILES_FILE_BYTES + 1)
+        except OSError as exc:
+            raise self._damaged(type(exc).__name__) from exc
+
+        if len(raw) > MAX_PROFILES_FILE_BYTES:
+            raise ProfileStorageError(
+                f"Your saved compare profiles could not be read: '{self._path}' is too "
+                "large to be a profiles file. It was left unchanged."
+            )
+
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError, RecursionError) as exc:
+            raise self._damaged(type(exc).__name__) from exc
+
+        return self._parse_payload(payload)
+
+    def _damaged(self, detail: str) -> ProfileStorageError:
+        """Build the typed error for a damaged profiles.json (T-03-01).
+
+        Parameters:
+            detail: A short, lowercase-friendly reason fragment (a caught
+                exception's type name, or a shape-validation detail such as
+                "unexpected layout" or "duplicate profile names").
+
+        Returns:
+            A ProfileStorageError naming self._path and detail. The caller
+            raises it, optionally chained with "from exc" to preserve the
+            original cause.
+        """
+        return ProfileStorageError(
+            f"Your saved compare profiles could not be read: '{self._path}' is damaged "
+            f"({detail}). It was left unchanged."
+        )
+
+    def _parse_payload(self, payload: object) -> List[Profile]:
+        """Validate a decoded profiles.json payload's shape and build Profiles.
+
+        Parameters:
+            payload: The json.loads() result of the file's contents.
+
+        Returns:
+            Every Profile the payload describes, sorted by profile_name_key
+            then name.
+
+        Raises:
+            ProfileStorageError: The payload is not a dict; "version" is
+                missing, not a plain int (a JSON true is refused), or newer
+                than PROFILES_SCHEMA_VERSION (reported distinctly as "newer
+                version"), or older/other than this version; "profiles" is
+                not a list; an entry is not a dict, has a non-string or
+                invalid name, or an "attributes" value that is not a list of
+                2-item string pairs; or two entries share a profile_name_key.
+        """
+        if not isinstance(payload, dict):
+            raise self._damaged("unexpected layout")
+
+        version = payload.get("version")
+        if type(version) is not int:
+            raise self._damaged("unexpected layout")
+        if version > PROFILES_SCHEMA_VERSION:
+            raise ProfileStorageError(
+                f"Your saved compare profiles at '{self._path}' were saved by a newer "
+                "version of GDTF Comparer. They were left unchanged."
+            )
+        if version != PROFILES_SCHEMA_VERSION:
+            raise self._damaged("unexpected layout")
+
+        entries = payload.get("profiles")
+        if not isinstance(entries, list):
+            raise self._damaged("unexpected layout")
+
+        profiles: List[Profile] = []
+        seen_keys = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                raise self._damaged("unexpected layout")
+
+            name = entry.get("name")
+            if not isinstance(name, str):
+                raise self._damaged("unexpected layout")
+            try:
+                normalize_profile_name(name)
+            except ProfileNameError:
+                raise self._damaged("a profile has an invalid name") from None
+
+            attributes = entry.get("attributes")
+            if not isinstance(attributes, list):
+                raise self._damaged("unexpected layout")
+            pairs = []
+            for pair in attributes:
+                if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+                    raise self._damaged("unexpected layout")
+                category, attribute = pair
+                if not isinstance(category, str) or not category:
+                    raise self._damaged("unexpected layout")
+                if not isinstance(attribute, str) or not attribute:
+                    raise self._damaged("unexpected layout")
+                pairs.append((category, attribute))
+
+            key = profile_name_key(name)
+            if key in seen_keys:
+                raise self._damaged("duplicate profile names")
+            seen_keys.add(key)
+
+            profiles.append(Profile(name=name, attributes=frozenset(pairs)))
+
         return sorted(
-            (
-                Profile(
-                    name=entry["name"],
-                    attributes=frozenset(tuple(pair) for pair in entry["attributes"]),
-                )
-                for entry in payload.get("profiles", [])
-            ),
-            key=lambda profile: (profile_name_key(profile.name), profile.name),
+            profiles, key=lambda profile: (profile_name_key(profile.name), profile.name)
         )
 
     def find(self, name: str) -> Optional[Profile]:
@@ -244,7 +350,12 @@ class ProfileRepository:
 
         Raises:
             ProfileNameError: name fails normalize_profile_name's rules.
-            ProfileStorageError: profiles.json could not be read or written.
+            ProfileStorageError: profiles.json could not be written, OR
+                could not be read in the first place -- since this method
+                starts from load_all(), a damaged, oversized or
+                newer-version file stops the save before anything is
+                written, rather than being silently replaced (prohibition:
+                a save can never destroy profiles it could not parse).
         """
         normalized = normalize_profile_name(name)
         profiles = {profile_name_key(profile.name): profile for profile in self.load_all()}
@@ -289,12 +400,12 @@ class ProfileRepository:
             self._dir, "." + PROFILES_FILE_NAME + "." + os.urandom(8).hex() + ".tmp"
         )
         try:
-            fd = os.open(
-                tmp_path,
-                os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
-                0o600,
-            )
             try:
+                fd = os.open(
+                    tmp_path,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0),
+                    0o600,
+                )
                 with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
                     fh.write(text)
                     fh.flush()
