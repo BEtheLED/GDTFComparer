@@ -98,6 +98,16 @@ PROFILE_ITEMS_NOT_FOUND_TEMPLATE = (
     "{missing} of {total} spec items in '{name}' weren't found in these files: {names}."
 )
 
+# Status bar message shown when a profile is loaded before any comparison
+# has finished (RESEARCH Pitfall 2): there is no current result to check the
+# profile's spec items against yet, so D-06's not-found report cannot run.
+# Written directly by _load_selected_profile, not by _show_result_status,
+# since that method returns early while table_model.result() is None.
+PROFILE_LOADED_NO_RESULT_TEMPLATE = (
+    "Loaded profile '{name}' ({count} spec items). Run a comparison to check "
+    "them against your files."
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 # How long closeEvent waits for a running worker thread before giving up and
@@ -792,7 +802,14 @@ class MainWindow(QMainWindow):
         AttributePicker.set_checked(), which fires selection_changed exactly
         once; the existing selection_changed -> _apply_attribute_selection
         chain then re-filters the table, refits columns and refreshes the
-        status message -- this method never duplicates that work.
+        status message -- this method never duplicates that work, EXCEPT
+        before a comparison has ever finished (table_model.result() is
+        None, RESEARCH Pitfall 2): in that state _show_result_status returns
+        immediately without writing anything, since there is no current
+        result to check the profile's spec items against, so this method
+        writes PROFILE_LOADED_NO_RESULT_TEMPLATE itself to tell the user to
+        run a comparison instead of guessing. D-06's not-found report never
+        appears without a current result.
         """
         if index < 0:
             return
@@ -806,6 +823,20 @@ class MainWindow(QMainWindow):
 
         self._active_profile = profile
         self.attribute_picker.set_checked(profile.attributes)
+        if self.table_model.result() is None:
+            # No comparison has finished yet (or one is running): there is
+            # no current result to check the profile's spec items against,
+            # so tell the user to run one instead of guessing (RESEARCH
+            # Pitfall 2). Once a result exists, the coalesced
+            # selection_changed set_checked() just emitted reaches
+            # _apply_attribute_selection -> _show_result_status, which owns
+            # the status bar from then on and must not be second-guessed
+            # here.
+            self.statusBar().showMessage(
+                PROFILE_LOADED_NO_RESULT_TEMPLATE.format(
+                    name=profile.name, count=len(profile.attributes)
+                )
+            )
 
     def _show_error(self, message: str) -> None:
         """Show a friendly modal, plain-text error dialog.

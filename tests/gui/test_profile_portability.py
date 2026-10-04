@@ -264,3 +264,139 @@ def test_not_found_check_never_changes_selection_or_result(qtbot, make_gdtf, tmp
     assert window.attribute_picker.checked_attributes() == PROFILE_PAIRS
     assert window.table_view.model().rowCount() == row_count_before
     assert window.is_comparison_running() is False
+
+
+# ---------------------------------------------------------------------------
+# Task 2: edges -- before any comparison, all items missing, differences
+# only, empty/reloaded/switched profiles.
+# ---------------------------------------------------------------------------
+
+
+def test_load_before_comparison_says_run_a_comparison(qtbot, make_gdtf, tmp_path):
+    target, comparison = _lacking_files(make_gdtf, suffix="_d")
+    window = _build_window(qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS)])
+    _load_profile(qtbot, window, 0)
+
+    expected_pre_result = main_window_module.PROFILE_LOADED_NO_RESULT_TEMPLATE.format(
+        name="Moving Head Spec", count=5
+    )
+    assert window.statusBar().currentMessage() == expected_pre_result
+    qtbot.wait(50)
+    assert window.statusBar().currentMessage() == expected_pre_result
+
+    _run(qtbot, window, target, comparison)
+    assert (
+        window.statusBar().currentMessage()
+        == main_window_module.PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+            missing=2, total=5, name="Moving Head Spec", names="Pan, Tilt"
+        )
+    )
+
+
+def test_all_items_missing_never_says_no_attributes_selected(qtbot, make_gdtf, tmp_path):
+    target, comparison = _lacking_files(make_gdtf, suffix="_e")
+    pairs = frozenset({(CATEGORY_DMX_POSITION, "Pan"), (CATEGORY_DMX_POSITION, "Tilt")})
+    window = _build_window(qtbot, tmp_path, [("Moving Head Spec", pairs)])
+    _run(qtbot, window, target, comparison)
+    _load_profile(qtbot, window, 0)
+
+    assert window.table_view.model().rowCount() == 0
+    expected = main_window_module.PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+        missing=2, total=2, name="Moving Head Spec", names="Pan, Tilt"
+    )
+    assert window.statusBar().currentMessage() == expected
+    assert expected != main_window_module.NO_ATTRIBUTES_SELECTED_MESSAGE
+
+
+def test_missing_items_and_no_differences_are_both_reported(qtbot, make_gdtf, tmp_path):
+    target, comparison = _lacking_files(make_gdtf, suffix="_f")
+    window = _build_window(qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS)])
+    _run(qtbot, window, target, comparison)
+    _load_profile(qtbot, window, 0)
+
+    expected_not_found = main_window_module.PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+        missing=2, total=5, name="Moving Head Spec", names="Pan, Tilt"
+    )
+    assert window.statusBar().currentMessage() == expected_not_found
+
+    with qtbot.waitSignal(window.differences_only_checkbox.toggled, timeout=1000):
+        window.differences_only_checkbox.setChecked(True)
+
+    assert window.table_view.model().rowCount() == 0
+    assert (
+        window.statusBar().currentMessage()
+        == f"{expected_not_found} {main_window_module.NO_DIFFERENCES_MESSAGE}"
+    )
+
+    with qtbot.waitSignal(window.differences_only_checkbox.toggled, timeout=1000):
+        window.differences_only_checkbox.setChecked(False)
+
+    assert window.statusBar().currentMessage() == expected_not_found
+
+
+def test_empty_profile_never_reports_zero_of_zero(qtbot, make_gdtf, tmp_path):
+    target, comparison = _full_files(make_gdtf, suffix="_g")
+    window = _build_window(qtbot, tmp_path, [("Empty", [])])
+    _run(qtbot, window, target, comparison)
+    _load_profile(qtbot, window, 0)
+
+    message = window.statusBar().currentMessage()
+    assert message == main_window_module.NO_ATTRIBUTES_SELECTED_MESSAGE
+    assert "0 of 0" not in message
+
+
+def test_unticking_found_spec_item_lowers_total(qtbot, make_gdtf, tmp_path):
+    target, comparison = _lacking_files(make_gdtf, suffix="_h")
+    window = _build_window(qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS)])
+    _run(qtbot, window, target, comparison)
+    _load_profile(qtbot, window, 0)
+
+    picker = window.attribute_picker
+    with qtbot.waitSignal(picker.selection_changed, timeout=1000):
+        picker.leaf_item(CATEGORY_BEAM, "BeamAngle").setCheckState(0, Qt.CheckState.Unchecked)
+
+    assert (
+        window.statusBar().currentMessage()
+        == main_window_module.PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+            missing=2, total=4, name="Moving Head Spec", names="Pan, Tilt"
+        )
+    )
+
+
+def test_reloading_profile_keeps_same_message(qtbot, make_gdtf, tmp_path):
+    target, comparison = _lacking_files(make_gdtf, suffix="_i")
+    window = _build_window(qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS)])
+    _run(qtbot, window, target, comparison)
+
+    _load_profile(qtbot, window, 0)
+    first_message = window.statusBar().currentMessage()
+
+    _load_profile(qtbot, window, 0)
+    second_message = window.statusBar().currentMessage()
+
+    assert first_message == second_message
+    assert window.attribute_picker.checked_attributes() == PROFILE_PAIRS
+
+
+def test_loading_another_profile_replaces_tracking(qtbot, make_gdtf, tmp_path):
+    target, comparison = _lacking_files(make_gdtf, suffix="_j")
+    basic_pairs = frozenset({(CATEGORY_BEAM, "BeamAngle")})
+    window = _build_window(
+        qtbot, tmp_path, [("Moving Head Spec", PROFILE_PAIRS), ("Basic", basic_pairs)]
+    )
+    _run(qtbot, window, target, comparison)
+
+    _load_profile_named(qtbot, window, "Moving Head Spec")
+    assert (
+        window.statusBar().currentMessage()
+        == main_window_module.PROFILE_ITEMS_NOT_FOUND_TEMPLATE.format(
+            missing=2, total=5, name="Moving Head Spec", names="Pan, Tilt"
+        )
+    )
+
+    _load_profile_named(qtbot, window, "Basic")
+    assert window.attribute_picker.checked_attributes() == basic_pairs
+    assert (
+        window.statusBar().currentMessage()
+        == f"Compared 1 file(s) against {os.path.basename(str(target))}"
+    )
