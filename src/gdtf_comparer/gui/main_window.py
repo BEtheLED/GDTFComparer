@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
 from gdtf_comparer.core.comparator import attribute_catalog
 from gdtf_comparer.core.errors import ProfileError
 from gdtf_comparer.core.models import ComparisonResult
-from gdtf_comparer.core.profile_repository import Profile, ProfileRepository
+from gdtf_comparer.core.profile_repository import Profile, ProfileRepository, normalize_profile_name
 from gdtf_comparer.gui.attribute_picker import AttributePicker
 from gdtf_comparer.gui.table_model import (
     AttributeSelectionProxyModel,
@@ -650,16 +650,28 @@ class MainWindow(QMainWindow):
         return text if ok else None
 
     def _save_profile(self) -> None:
-        """Save the currently checked attributes as a named compare profile."""
-        name = self._ask_profile_name(
+        """Save the currently checked attributes as a named compare profile.
+
+        Saving under a name that already exists (ignoring case, surrounding
+        whitespace and Unicode form, D-04) asks "Replace it?" first, with No
+        as the safe default; answering No leaves the existing profile
+        untouched and writes nothing.
+        """
+        raw_name = self._ask_profile_name(
             SAVE_PROFILE_TITLE,
             SAVE_PROFILE_PROMPT,
             self._active_profile.name if self._active_profile else "",
         )
-        if name is None:
+        if raw_name is None:
             return
 
         try:
+            name = normalize_profile_name(raw_name)
+            existing = self.profile_repository.find(name)
+            if existing is not None and not self._confirm(
+                OVERWRITE_PROFILE_TEMPLATE.format(name=existing.name)
+            ):
+                return
             profile = self.profile_repository.save(name, self.attribute_picker.checked_attributes())
         except ProfileError as exc:
             self._show_error(str(exc))
@@ -715,3 +727,31 @@ class MainWindow(QMainWindow):
         )
         box.setTextFormat(Qt.TextFormat.PlainText)
         box.exec()
+
+    def _confirm(self, message: str) -> bool:
+        """Ask a plain-text Yes/No question, defaulting to No.
+
+        Parameters:
+            message: The question to show. Always rendered as plain text
+                (Qt.TextFormat.PlainText) so a profile name is never
+                interpreted as rich text (T-01-17 carried).
+
+        Returns:
+            True only if the user clicks Yes. Used for the D-04 save-over-
+            an-existing-name confirmation here, and for the D-05 delete
+            confirmation in Plan 03-03. Defaults to No (both as the
+            QMessageBox default button and the escape/close action) so a
+            stray Enter or Escape never destroys a saved profile.
+        """
+        box = QMessageBox(
+            QMessageBox.Icon.Question,
+            "GDTF Comparer",
+            message,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            self,
+        )
+        box.setTextFormat(Qt.TextFormat.PlainText)
+        box.setDefaultButton(QMessageBox.StandardButton.No)
+        box.setEscapeButton(QMessageBox.StandardButton.No)
+        box.exec()
+        return box.clickedButton() == box.button(QMessageBox.StandardButton.Yes)

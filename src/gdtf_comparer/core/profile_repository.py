@@ -16,10 +16,11 @@ tempfile.mkstemp, per this plan's assumption_delta_decision).
 import json
 import os
 import sys
+import unicodedata
 from dataclasses import dataclass
 from typing import FrozenSet, Iterable, List, Mapping, Optional, Tuple
 
-from gdtf_comparer.core.errors import ProfileNotFoundError, ProfileStorageError
+from gdtf_comparer.core.errors import ProfileNameError, ProfileNotFoundError, ProfileStorageError
 
 AttributePair = Tuple[str, str]
 
@@ -50,6 +51,52 @@ class Profile:
 
     name: str
     attributes: FrozenSet[AttributePair]
+
+
+def normalize_profile_name(name: str) -> str:
+    """Validate and normalize a user-entered profile name (D-04, ASVS V5).
+
+    Parameters:
+        name: The raw, user-entered profile name.
+
+    Returns:
+        The trimmed, Unicode-NFC-normalized name, unchanged in display case
+        -- name identity for matching purposes is handled separately by
+        profile_name_key; this function only validates and normalizes form.
+
+    Raises:
+        ProfileNameError: name is empty/whitespace-only after trimming,
+            longer than MAX_PROFILE_NAME_LENGTH characters, or contains a
+            line break, tab or other control character.
+    """
+    normalized = unicodedata.normalize("NFC", name.strip())
+    if not normalized:
+        raise ProfileNameError("Enter a name for the profile.")
+    if len(normalized) > MAX_PROFILE_NAME_LENGTH:
+        raise ProfileNameError(
+            f"Profile names can be at most {MAX_PROFILE_NAME_LENGTH} characters."
+        )
+    if any(unicodedata.category(character) in ("Cc", "Cs") for character in normalized):
+        raise ProfileNameError(
+            "Profile names can't contain line breaks, tabs or other control characters."
+        )
+    return normalized
+
+
+def profile_name_key(name: str) -> str:
+    """Return the case/whitespace/Unicode-form-insensitive identity of name.
+
+    Parameters:
+        name: A profile name, raw or already normalized.
+
+    Returns:
+        unicodedata.normalize("NFC", name.strip()).casefold(). Never raises
+        -- two names are the same profile exactly when this key matches for
+        both (D-04: "Moving Head Spec" and "  moving head spec " collide;
+        "Façade" typed with a combining cedilla matches its precomposed
+        form).
+    """
+    return unicodedata.normalize("NFC", name.strip()).casefold()
 
 
 def app_data_dir(platform: str, environ: Mapping[str, str], home: str) -> str:
@@ -125,7 +172,9 @@ class ProfileRepository:
         """Return every saved profile, or [] if no file exists yet.
 
         Returns:
-            Every saved Profile, sorted by name (casefold).
+            Every saved Profile, sorted by profile_name_key (case,
+            surrounding whitespace and Unicode-form insensitive), then by
+            name, for deterministic output.
 
         Raises:
             ProfileStorageError: The file exists but could not be read.
@@ -142,11 +191,28 @@ class ProfileRepository:
                 )
                 for entry in payload.get("profiles", [])
             ),
-            key=lambda profile: profile.name.casefold(),
+            key=lambda profile: (profile_name_key(profile.name), profile.name),
         )
 
+    def find(self, name: str) -> Optional[Profile]:
+        """Return the saved profile matching name, or None.
+
+        Parameters:
+            name: The profile name to look up. Matched by profile_name_key,
+                so surrounding whitespace, letter case and Unicode
+                normalization form are all ignored (D-04).
+
+        Returns:
+            The matching Profile, or None if no saved profile matches.
+        """
+        key = profile_name_key(name)
+        for profile in self.load_all():
+            if profile_name_key(profile.name) == key:
+                return profile
+        return None
+
     def get(self, name: str) -> Profile:
-        """Return the saved profile named exactly name.
+        """Return the saved profile matching name (profile_name_key identity).
 
         Parameters:
             name: The profile name to look up.
@@ -155,28 +221,37 @@ class ProfileRepository:
             The matching Profile.
 
         Raises:
-            ProfileNotFoundError: No saved profile has this exact name.
+            ProfileNotFoundError: No saved profile matches name.
         """
-        for profile in self.load_all():
-            if profile.name == name:
-                return profile
-        raise ProfileNotFoundError(
-            f"There is no saved profile named '{name}'. It may have been renamed or deleted."
-        )
+        profile = self.find(name)
+        if profile is None:
+            raise ProfileNotFoundError(
+                f"There is no saved profile named '{name}'. It may have been renamed or deleted."
+            )
+        return profile
 
     def save(self, name: str, attributes: Iterable[AttributePair]) -> Profile:
-        """Create or replace the profile named name with attributes.
+        """Create or replace the profile matching name with attributes.
 
         Parameters:
-            name: The profile name to store under.
+            name: The profile name to store under. Validated and normalized
+                by normalize_profile_name (D-04 overwrite confirmation
+                itself happens in the GUI, not here -- this always writes).
             attributes: The (category, attribute) pairs to save.
 
         Returns:
-            The stored Profile.
+            The stored Profile, under its normalized name.
+
+        Raises:
+            ProfileNameError: name fails normalize_profile_name's rules.
+            ProfileStorageError: profiles.json could not be read or written.
         """
-        profiles = {profile.name: profile for profile in self.load_all()}
-        stored = Profile(name=name, attributes=frozenset(tuple(pair) for pair in attributes))
-        profiles[name] = stored
+        normalized = normalize_profile_name(name)
+        profiles = {profile_name_key(profile.name): profile for profile in self.load_all()}
+        stored = Profile(
+            name=normalized, attributes=frozenset(tuple(pair) for pair in attributes)
+        )
+        profiles[profile_name_key(normalized)] = stored
         self._write_all(profiles.values())
         return stored
 
@@ -197,7 +272,7 @@ class ProfileRepository:
             ProfileStorageError: The write failed for any reason (OSError).
         """
         os.makedirs(self._dir, mode=0o700, exist_ok=True)
-        ordered = sorted(profiles, key=lambda profile: (profile.name.casefold(), profile.name))
+        ordered = sorted(profiles, key=lambda profile: (profile_name_key(profile.name), profile.name))
         payload = {
             "version": PROFILES_SCHEMA_VERSION,
             "profiles": [
