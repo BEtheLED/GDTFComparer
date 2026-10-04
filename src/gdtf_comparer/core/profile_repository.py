@@ -366,6 +366,63 @@ class ProfileRepository:
         self._write_all(profiles.values())
         return stored
 
+    def rename(self, old_name: str, new_name: str) -> Profile:
+        """Rename a saved profile, keeping its attributes (D-05).
+
+        Parameters:
+            old_name: The current name of the profile to rename, matched by
+                profile_name_key (surrounding whitespace, letter case and
+                Unicode normalization form all ignored).
+            new_name: The new name to give it. Validated and normalized by
+                normalize_profile_name; a rename that only changes case
+                (e.g. "spec" -> "Spec") is allowed, since its
+                profile_name_key is unchanged.
+
+        Returns:
+            The renamed Profile, under its new normalized name. When
+            new_name normalizes to the exact same name old_name is already
+            stored under, nothing is written and the unchanged Profile is
+            returned.
+
+        Raises:
+            ProfileNameError: new_name fails normalize_profile_name's
+                rules, or its profile_name_key already belongs to a
+                different saved profile (never a silent overwrite --
+                T-03-15).
+            ProfileNotFoundError: No saved profile matches old_name.
+            ProfileStorageError: profiles.json could not be read in the
+                first place -- since this method starts from load_all(), a
+                damaged, oversized or newer-version file stops the rename
+                before anything is written (T-03-16) -- or could not be
+                written.
+        """
+        new = normalize_profile_name(new_name)
+        by_key = {profile_name_key(profile.name): profile for profile in self.load_all()}
+
+        old_key = profile_name_key(old_name)
+        if old_key not in by_key:
+            raise ProfileNotFoundError(
+                f"There is no saved profile named '{old_name}'. "
+                "It may have been renamed or deleted."
+            )
+        old = by_key[old_key]
+
+        new_key = profile_name_key(new)
+        if new_key != old_key and new_key in by_key:
+            raise ProfileNameError(
+                f"A profile named '{by_key[new_key].name}' already exists. "
+                "Choose a different name."
+            )
+
+        if new == old.name:
+            return old
+
+        renamed = Profile(name=new, attributes=old.attributes)
+        del by_key[old_key]
+        by_key[new_key] = renamed
+        self._write_all(by_key.values())
+        return renamed
+
     def _write_all(self, profiles: Iterable[Profile]) -> None:
         """Atomically replace profiles.json with exactly these profiles.
 

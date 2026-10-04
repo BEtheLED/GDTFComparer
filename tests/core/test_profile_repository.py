@@ -14,7 +14,7 @@ import sys
 import pytest
 
 from gdtf_comparer.core import profile_repository as profile_repository_module
-from gdtf_comparer.core.errors import ProfileNameError, ProfileStorageError
+from gdtf_comparer.core.errors import ProfileNameError, ProfileNotFoundError, ProfileStorageError
 from gdtf_comparer.core.profile_repository import (
     MAX_PROFILES_FILE_BYTES,
     ProfileRepository,
@@ -290,6 +290,78 @@ def test_failed_temp_write_leaves_no_temp(tmp_path, monkeypatch):
     assert isinstance(exc_info.value.__cause__, OSError)
     assert (tmp_path / "profiles.json").read_bytes() == original_bytes
     assert sorted(os.listdir(tmp_path)) == ["profiles.json"]
+
+
+def test_rename_keeps_attributes_and_replaces_name(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    attrs = {("Beam", "BeamAngle")}
+    repo.save("Moving Head Spec", attrs)
+
+    renamed = repo.rename("moving head spec", "Wash Spec")
+
+    assert renamed.name == "Wash Spec"
+    assert renamed.attributes == frozenset(attrs)
+
+    fresh = ProfileRepository(base_dir=str(tmp_path))
+    profiles = fresh.load_all()
+    assert [p.name for p in profiles] == ["Wash Spec"]
+    assert profiles[0].attributes == frozenset(attrs)
+
+
+def test_rename_case_only_is_allowed(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("spec", {("Beam", "BeamAngle")})
+
+    renamed = repo.rename("spec", "Spec")
+
+    assert renamed.name == "Spec"
+    profiles = repo.load_all()
+    assert len(profiles) == 1
+    assert profiles[0].name == "Spec"
+
+
+def test_rename_to_another_profiles_name_is_refused(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("A", {("Beam", "BeamAngle")})
+    repo.save("B", {("Beam", "FieldAngle")})
+    original_bytes = open(repo.path, "rb").read()
+
+    with pytest.raises(ProfileNameError) as exc_info:
+        repo.rename("A", " b ")
+
+    assert "'B' already exists" in str(exc_info.value)
+    assert open(repo.path, "rb").read() == original_bytes
+
+
+def test_rename_missing_profile_raises_not_found(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+
+    with pytest.raises(ProfileNotFoundError):
+        repo.rename("Gone", "New Name")
+
+    assert os.path.exists(repo.path) is False
+
+
+def test_rename_to_invalid_name_is_refused(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    repo.save("A", {("Beam", "BeamAngle")})
+    original_bytes = open(repo.path, "rb").read()
+
+    with pytest.raises(ProfileNameError):
+        repo.rename("A", "   ")
+
+    assert open(repo.path, "rb").read() == original_bytes
+
+
+def test_rename_refuses_damaged_file(tmp_path):
+    repo = ProfileRepository(base_dir=str(tmp_path))
+    (tmp_path / "profiles.json").write_text("{not json", encoding="utf-8")
+    original_bytes = (tmp_path / "profiles.json").read_bytes()
+
+    with pytest.raises(ProfileStorageError):
+        repo.rename("A", "B")
+
+    assert (tmp_path / "profiles.json").read_bytes() == original_bytes
 
 
 def test_missing_attributes():
