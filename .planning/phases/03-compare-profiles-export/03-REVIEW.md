@@ -10,9 +10,9 @@ files_reviewed_list:
   - tests/gui/test_profile_toolbar.py
 findings:
   critical: 0
-  warning: 1
+  warning: 0
   info: 2
-  total: 3
+  total: 2
 status: issues_found
 ---
 
@@ -21,7 +21,7 @@ status: issues_found
 **Reviewed:** 2026-10-04T00:00:00Z
 **Depth:** standard
 **Files Reviewed:** 4
-**Status:** issues_found
+**Status:** issues_found (WR-01 fixed post-review; 2 non-blocking Info items remain open)
 
 ## Summary
 
@@ -49,7 +49,15 @@ describes is no longer current.
 
 ## Warnings
 
-### WR-01: Match indicator dots go stale during a re-run and after a failed re-run
+### WR-01: Match indicator dots go stale during a re-run and after a failed re-run — **FIXED**
+
+**Resolution (commit `564217d`):** `_reset_match_indicators()` is now called
+from both `run_comparison` (right after `table_model.set_result(None)`) and
+`on_comparison_failed` (same place). Two regression tests added to
+`tests/gui/test_compare_list_match_indicator.py`:
+`test_running_again_resets_stale_indicators_before_new_result` and
+`test_failed_comparison_resets_stale_indicators_to_unknown`. Full suite
+(258 tests) passes.
 
 **File:** `src/gdtf_comparer/gui/main_window.py:547-577` (`run_comparison`), `871-879` (`on_comparison_failed`)
 
