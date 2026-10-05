@@ -108,7 +108,7 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 3/4 plans executed (3 original + 1 gap closure)
+**Plans**: 4/4 plans executed (3 original + 1 gap closure)
 
 Plans:
 **Wave 1**
@@ -129,7 +129,7 @@ Plans:
 
 **Wave 4** *(blocked on 03-03)*
 
-- [ ] 03-04-PLAN.md — G-03-1/G-03-2: two-row profile toolbar so the dropdown, Save… and Manage never clip in the 260 px Attributes panel, plus a green/red/gray match-indicator dot on each "Compare with" file reusing ComparisonRow.differs (wave 4)
+- [x] 03-04-PLAN.md — G-03-1/G-03-2: two-row profile toolbar so the dropdown, Save… and Manage never clip in the 260 px Attributes panel, plus a green/red/gray match-indicator dot on each "Compare with" file reusing ComparisonRow.differs (wave 4)
 
 ### Phase 4: Standalone Packaging
 
@@ -169,6 +169,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 3/3 | In Progress|  |
+| 3. Compare Profiles & Export | 4/4 | In Progress|  |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
