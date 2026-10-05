@@ -9,6 +9,7 @@ import os
 import pytest
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
+from PySide6.QtWidgets import QMessageBox
 
 from gdtf_comparer.core.models import CATEGORY_PHYSICAL
 from gdtf_comparer.gui import main_window as main_window_module
@@ -198,6 +199,54 @@ def test_indicator_never_changes_comparison_or_selection(
     assert window.attribute_picker.checked_attributes() == checked
     assert window.compare_files == files
     assert window.is_comparison_running() is False
+
+
+def test_running_again_resets_stale_indicators_before_new_result(
+    qtbot, target, match_file, differs_file
+):
+    """A re-run must not leave the previous run's dots on screen (03-REVIEW.md WR-01):
+    run_comparison() clears table_model's result synchronously before starting the
+    worker thread, and must reset the dots in that same synchronous step."""
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    _run(qtbot, window, target, [match_file, differs_file])
+    assert window.compare_list.item(0).data(main_window_module.COMPARE_MATCH_STATE_ROLE) == (
+        main_window_module.MATCH_STATE_MATCH
+    )
+
+    window.run_comparison()
+    for row in range(window.compare_list.count()):
+        item = window.compare_list.item(row)
+        assert item.data(main_window_module.COMPARE_MATCH_STATE_ROLE) == (
+            main_window_module.MATCH_STATE_UNKNOWN
+        )
+    qtbot.waitUntil(lambda: window.run_button.isEnabled(), timeout=10000)
+
+
+def test_failed_comparison_resets_stale_indicators_to_unknown(
+    qtbot, monkeypatch, target, match_file, differs_file
+):
+    """A failed re-run must not leave a stale, no-longer-trustworthy verdict on
+    screen (03-REVIEW.md WR-01): on_comparison_failed already clears the table's
+    result and must reset the dots alongside it."""
+    monkeypatch.setattr(QMessageBox, "exec", lambda self: 0)
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    _run(qtbot, window, target, [match_file, differs_file])
+    assert window.compare_list.item(0).data(main_window_module.COMPARE_MATCH_STATE_ROLE) == (
+        main_window_module.MATCH_STATE_MATCH
+    )
+
+    window.on_comparison_failed("Something went wrong.")
+
+    for row in range(window.compare_list.count()):
+        item = window.compare_list.item(row)
+        assert item.data(main_window_module.COMPARE_MATCH_STATE_ROLE) == (
+            main_window_module.MATCH_STATE_UNKNOWN
+        )
 
 
 def test_defensive_reset_when_compare_list_and_result_disagree(qtbot, target, match_file):

@@ -556,6 +556,7 @@ class MainWindow(QMainWindow):
             return
 
         self.table_model.set_result(None)
+        self._reset_match_indicators()
         self.run_button.setEnabled(False)
         self.statusBar().showMessage(f"Comparing {len(self.compare_files)} file(s)…")
 
@@ -875,6 +876,7 @@ class MainWindow(QMainWindow):
             message: The user-facing error message from the worker.
         """
         self.table_model.set_result(None)
+        self._reset_match_indicators()
         self.statusBar().showMessage("Comparison failed")
         self._show_error(message)
 
