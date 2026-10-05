@@ -15,6 +15,7 @@ from gdtf_comparer.gui import main_window as main_window_module
 from gdtf_comparer.gui.attribute_picker import AttributePicker
 from gdtf_comparer.gui.main_window import MainWindow
 from gdtf_comparer.gui.table_model import ComparisonTableModel
+from gdtf_comparer.gui.theme import DARK_THEME, LIGHT_THEME, apply_theme
 
 # One Beam geometry (6 Beam pairs) plus the fixture-level Weight pair, plus
 # two DMX attribute definitions under their own "DMX: " categories (shared
@@ -80,8 +81,12 @@ def test_profile_toolbar_sits_above_picker_in_attributes_panel(qtbot):
 
     assert window.attributes_group.isAncestorOf(window.profile_combo) is True
     assert window.attributes_group.isAncestorOf(window.save_profile_button) is True
-    assert window.profile_row.indexOf(window.profile_combo) >= 0
-    assert window.profile_row.indexOf(window.save_profile_button) >= 0
+    assert window.profile_combo_row.indexOf(window.profile_combo) >= 0
+    assert window.profile_actions_row.indexOf(window.save_profile_button) >= 0
+    assert window.profile_row.indexOf(window.profile_combo_row) >= 0
+    assert window.profile_row.indexOf(window.profile_actions_row) > window.profile_row.indexOf(
+        window.profile_combo_row
+    )
     assert window.save_profile_button.text() == main_window_module.SAVE_PROFILE_LABEL
     assert window.profile_combo.isEnabled() is False
     assert window.profile_combo.count() == 0
@@ -93,6 +98,42 @@ def test_profile_toolbar_sits_above_picker_in_attributes_panel(qtbot):
     combo_top = window.profile_combo.mapTo(window, QPoint(0, 0)).y()
     search_top = window.attribute_picker.search_edit.mapTo(window, QPoint(0, 0)).y()
     assert combo_top < search_top
+
+
+@pytest.mark.parametrize("theme", [LIGHT_THEME, DARK_THEME])
+def test_profile_toolbar_widgets_never_clipped(qapp, qtbot, theme):
+    """03-UAT.md G-03-1: dropdown/Save…/Manage never shrink below their own
+    sizeHint, at the panel's default width and its drag floor, in both
+    qt-material themes."""
+    apply_theme(qapp, theme)
+
+    window = MainWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+
+    total_width = sum(window.content_splitter.sizes())
+    panel_widths = [
+        window.content_splitter.sizes()[0],
+        window.attributes_group.minimumWidth(),
+    ]
+
+    for panel_width in panel_widths:
+        window.content_splitter.setSizes([panel_width, total_width - panel_width])
+        qapp.processEvents()
+        qapp.processEvents()
+
+        for widget in (
+            window.profile_combo,
+            window.save_profile_button,
+            window.manage_profile_button,
+        ):
+            needed = widget.sizeHint().width()
+            actual = widget.width()
+            assert actual >= needed, (
+                f"{widget.objectName() or widget.__class__.__name__} clipped at "
+                f"panel_width={panel_width}: actual={actual}, sizeHint={needed}"
+            )
 
 
 def test_load_profile_replaces_checked_set(qtbot, make_gdtf, monkeypatch):

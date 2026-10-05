@@ -123,8 +123,8 @@ def test_manage_button_sits_in_profile_row(qtbot):
     qtbot.addWidget(window)
 
     assert (
-        window.profile_row.indexOf(window.manage_profile_button)
-        > window.profile_row.indexOf(window.save_profile_button)
+        window.profile_actions_row.indexOf(window.manage_profile_button)
+        > window.profile_actions_row.indexOf(window.save_profile_button)
         >= 0
     )
     assert window.manage_profile_button.text() == main_window_module.MANAGE_PROFILES_LABEL

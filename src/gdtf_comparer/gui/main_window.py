@@ -10,6 +10,7 @@ import os
 from typing import List, Optional, Sequence
 
 from PySide6.QtCore import QThread, Qt, Slot
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
@@ -126,6 +127,37 @@ PROFILE_LOADED_NO_RESULT_TEMPLATE = (
     "them against your files."
 )
 
+# Per-file match indicator on the "Compare with" list (Phase 3 G-03-2;
+# 03-UAT.md, 03-CONTEXT.md D-01 substitute-fixture workflow). A second
+# custom role on each compare_list QListWidgetItem, alongside the existing
+# Qt.ItemDataRole.UserRole file path, mirroring gui.table_model's
+# SELECTION_KEY_ROLE pattern of publishing state through a role rather than
+# re-deriving it.
+COMPARE_MATCH_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
+MATCH_STATE_UNKNOWN = "unknown"
+MATCH_STATE_MATCH = "match"
+MATCH_STATE_DIFFERS = "differs"
+MATCH_STATE_TOOLTIPS = {
+    MATCH_STATE_UNKNOWN: "Not yet compared. Run a comparison to check.",
+    MATCH_STATE_MATCH: "Matches the target in every checked attribute.",
+    MATCH_STATE_DIFFERS: "Differs from the target in at least one checked attribute.",
+}
+
+_MATCH_INDICATOR_DIAMETER_PX = 12
+
+# Fixed, theme-independent colors (03-CONTEXT.md: Claude's discretion) -- not
+# derived from the qt-material theme like diff_highlight_color, because a
+# dot needs to read the same way regardless of light/dark mode, and these
+# three are chosen for contrast against both. The gray state is "no data
+# yet", not a severity tier, so this stays the existing binary
+# match/differs signal plus "nothing to report" -- never the deferred
+# Red/Yellow/Green acceptability rating (03-CONTEXT.md Deferred Ideas).
+_MATCH_INDICATOR_COLORS = {
+    MATCH_STATE_MATCH: QColor("#2ecc71"),
+    MATCH_STATE_DIFFERS: QColor("#e74c3c"),
+    MATCH_STATE_UNKNOWN: QColor("#9e9e9e"),
+}
+
 _LOGGER = logging.getLogger(__name__)
 
 # How long closeEvent waits for a running worker thread before giving up and
@@ -152,6 +184,40 @@ MAX_COLUMN_WIDTH_PX = 280
 # squeezed to an unreadable sliver when many comparison files are open at
 # once -- past this point a horizontal scrollbar is the lesser evil.
 MIN_VALUE_COLUMN_WIDTH_PX = 120
+
+# The Attributes panel's drag floor (D-02: the panel cannot be fully
+# collapsed, but the user can still narrow it). Raised from 220 to 240 as
+# part of the G-03-1 fix (03-UAT.md) because 230 px of group width is the
+# measured breakeven where the stacked Save…/Manage row (profile_actions_row,
+# below) stops being squeezed below its own sizeHint (03-04-PLAN.md Design
+# notes); the unchanged 260 px default already clears this with room to
+# spare.
+ATTRIBUTES_PANEL_MIN_WIDTH_PX = 240
+
+
+def _match_indicator_icon(state: str) -> QIcon:
+    """Return a small filled-circle QIcon for one compare_list item's state.
+
+    Parameters:
+        state: One of MATCH_STATE_MATCH / MATCH_STATE_DIFFERS /
+            MATCH_STATE_UNKNOWN.
+
+    Returns:
+        A QIcon built from a _MATCH_INDICATOR_DIAMETER_PX-square QPixmap,
+        transparent everywhere outside the circle so it reads as a dot
+        against either theme's list background. Built fresh per call (no
+        caching -- this only runs on an explicit state change, never
+        per-paint).
+    """
+    pixmap = QPixmap(_MATCH_INDICATOR_DIAMETER_PX, _MATCH_INDICATOR_DIAMETER_PX)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(_MATCH_INDICATOR_COLORS[state])
+    painter.drawEllipse(0, 0, _MATCH_INDICATOR_DIAMETER_PX, _MATCH_INDICATOR_DIAMETER_PX)
+    painter.end()
+    return QIcon(pixmap)
 
 
 def _normalized_path(path: str) -> str:
@@ -275,9 +341,15 @@ class MainWindow(QMainWindow):
         self.attributes_group = QGroupBox("Attributes", central)
         attributes_layout = QVBoxLayout(self.attributes_group)
 
-        # Profile toolbar row (Phase 3 D-02, D-07): sits directly above the
-        # attribute picker, one row holding the load dropdown and Save….
-        self.profile_row = QHBoxLayout()
+        # Profile toolbar row (Phase 3 D-02, D-07; split into two stacked
+        # rows for G-03-1, 03-UAT.md): sits directly above the attribute
+        # picker as one consolidated block -- row 1 is the load dropdown
+        # alone, row 2 is Save…+Manage -- rather than squeezing all three
+        # widgets into a single row, which qt-material's uppercase +
+        # padding chrome was clipping (03-04-PLAN.md Design notes).
+        self.profile_row = QVBoxLayout()
+
+        self.profile_combo_row = QHBoxLayout()
         self.profile_combo = QComboBox(self.attributes_group)
         self.profile_combo.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
@@ -286,12 +358,14 @@ class MainWindow(QMainWindow):
         self.profile_combo.setMaxVisibleItems(15)
         self.profile_combo.setToolTip(PROFILE_COMBO_TOOLTIP)
         self.profile_combo.activated.connect(self._load_selected_profile)
-        self.profile_row.addWidget(self.profile_combo, 1)
+        self.profile_combo_row.addWidget(self.profile_combo, 1)
+        self.profile_row.addLayout(self.profile_combo_row)
 
+        self.profile_actions_row = QHBoxLayout()
         self.save_profile_button = QPushButton(SAVE_PROFILE_LABEL, self.attributes_group)
         self.save_profile_button.setToolTip(SAVE_PROFILE_TOOLTIP)
         self.save_profile_button.clicked.connect(self._save_profile)
-        self.profile_row.addWidget(self.save_profile_button)
+        self.profile_actions_row.addWidget(self.save_profile_button, 1)
 
         self.manage_profile_button = QToolButton(self.attributes_group)
         self.manage_profile_button.setText(MANAGE_PROFILES_LABEL)
@@ -303,7 +377,8 @@ class MainWindow(QMainWindow):
         self.delete_profile_action = self.manage_profile_menu.addAction(DELETE_PROFILE_LABEL)
         self.delete_profile_action.triggered.connect(self._delete_selected_profile)
         self.manage_profile_button.setMenu(self.manage_profile_menu)
-        self.profile_row.addWidget(self.manage_profile_button)
+        self.profile_actions_row.addWidget(self.manage_profile_button, 1)
+        self.profile_row.addLayout(self.profile_actions_row)
 
         # Only toggles enabled state (never loads a profile): the dropdown's
         # own activated connection (above) is the sole load trigger, so
@@ -315,7 +390,7 @@ class MainWindow(QMainWindow):
 
         self.attribute_picker = AttributePicker(self.attributes_group)
         attributes_layout.addWidget(self.attribute_picker)
-        self.attributes_group.setMinimumWidth(220)
+        self.attributes_group.setMinimumWidth(ATTRIBUTES_PANEL_MIN_WIDTH_PX)
         self.attribute_picker.selection_changed.connect(self._apply_attribute_selection)
 
         self.results_panel = QWidget(central)
@@ -419,6 +494,7 @@ class MainWindow(QMainWindow):
                 f"Removed '{removed_basename}' from the comparison list: "
                 "it is now the target file."
             )
+        self._reset_match_indicators()
 
     def add_compare_files(self, paths: Sequence[str]) -> None:
         """Add comparison files, refusing the target and duplicate paths.
@@ -456,6 +532,7 @@ class MainWindow(QMainWindow):
                 f"Skipped '{os.path.basename(self.target_file)}': it is "
                 "already selected as the target file."
             )
+        self._reset_match_indicators()
 
     def remove_selected_files(self) -> None:
         """Remove the selected rows from both compare_files and the list widget."""
@@ -465,6 +542,7 @@ class MainWindow(QMainWindow):
             if path in self.compare_files:
                 self.compare_files.remove(path)
             self.compare_list.takeItem(row)
+        self._reset_match_indicators()
 
     def run_comparison(self) -> None:
         """Validate inputs, then run a comparison on a QThread worker (D-14)."""
@@ -537,11 +615,18 @@ class MainWindow(QMainWindow):
         Connected to AttributePicker.selection_changed, and also called
         directly after on_comparison_ready seeds a fresh catalog (D-03: the
         checked set is the only thing that decides which rows show).
+
+        Also recomputes the "Compare with" match indicators (G-03-2): this
+        single call site covers both "after Run Comparison" (on_comparison_
+        ready calls this method directly, after attribute_picker.set_catalog)
+        and "whenever the checked attributes change" (the existing
+        selection_changed connection), without a second call site.
         """
         self.selection_proxy.set_selected_attributes(self.attribute_picker.checked_attributes())
         if self.table_model.result() is not None:
             self._fit_columns_to_contents()
         self._show_result_status()
+        self._update_match_indicators()
 
     def _apply_differences_only(self, checked: bool) -> None:
         """Push the "Show differences only" checkbox state into its proxy.
@@ -558,6 +643,91 @@ class MainWindow(QMainWindow):
         if self.table_model.result() is not None:
             self._fit_columns_to_contents()
         self._show_result_status()
+
+    def _set_compare_item_match_state(self, item: QListWidgetItem, state: str) -> None:
+        """Set one compare_list item's match-indicator state, icon and tooltip.
+
+        Parameters:
+            item: The QListWidgetItem to update.
+            state: One of MATCH_STATE_MATCH / MATCH_STATE_DIFFERS /
+                MATCH_STATE_UNKNOWN.
+
+        Keeps the item's existing full-path tooltip (Plan 01-02) and appends
+        the new plain-language state sentence -- no new untrusted content
+        enters the tooltip (T-03-19).
+        """
+        item.setData(COMPARE_MATCH_STATE_ROLE, state)
+        item.setIcon(_match_indicator_icon(state))
+        path = item.data(Qt.ItemDataRole.UserRole)
+        item.setToolTip(f"{path}\n{MATCH_STATE_TOOLTIPS[state]}")
+
+    def _mark_all_compare_items_unknown(self) -> None:
+        """Set every "Compare with" item's match indicator to unknown.
+
+        Shared by _reset_match_indicators (the explicit public reset called
+        after every file-list/target mutation) and _update_match_indicators'
+        own no-result/stale-defensive paths, so both describe exactly the
+        same "nothing to report" state through one implementation.
+        """
+        for row in range(self.compare_list.count()):
+            self._set_compare_item_match_state(
+                self.compare_list.item(row), MATCH_STATE_UNKNOWN
+            )
+
+    def _reset_match_indicators(self) -> None:
+        """Reset every "Compare with" item's match indicator to unknown.
+
+        Called whenever the compared files, the target, or the checked
+        attributes change (G-03-2) -- the dots always describe the
+        comparison CURRENTLY on screen, never a stale one.
+        """
+        self._mark_all_compare_items_unknown()
+
+    def _update_match_indicators(self) -> None:
+        """Recompute every "Compare with" item's match indicator.
+
+        Reads straight off the current ComparisonResult's rows filtered to
+        the currently checked (category, attribute) pairs -- "match" means
+        no CHECKED row differs, read directly from ComparisonRow.differs
+        (core.models), never full-file identity and never the D-06 "spec
+        item present/absent" concept (03-UAT.md G-03-2 root_cause). This
+        method only reads state; it never changes compare_files, the
+        checked set or the result.
+
+        Resets every indicator to unknown when there is no current result,
+        or when compare_list and result.comparisons disagree by count or by
+        path order -- the displayed list no longer lines up with this
+        result, so no dot ever guesses which file it belongs to (T-03-21).
+        """
+        result = self.table_model.result()
+        if result is None:
+            self._mark_all_compare_items_unknown()
+            return
+
+        if self.compare_list.count() != len(result.comparisons):
+            self._mark_all_compare_items_unknown()
+            return
+        for index in range(self.compare_list.count()):
+            item_path = self.compare_list.item(index).data(Qt.ItemDataRole.UserRole)
+            if _normalized_path(item_path) != _normalized_path(
+                result.comparisons[index].source_path
+            ):
+                self._mark_all_compare_items_unknown()
+                return
+
+        checked = self.attribute_picker.checked_attributes()
+        evaluated = [
+            row for row in result.rows if (row.key.category, row.key.attribute) in checked
+        ]
+
+        for row_index in range(self.compare_list.count()):
+            if not evaluated:
+                state = MATCH_STATE_UNKNOWN
+            elif any(row.differs[row_index] for row in evaluated):
+                state = MATCH_STATE_DIFFERS
+            else:
+                state = MATCH_STATE_MATCH
+            self._set_compare_item_match_state(self.compare_list.item(row_index), state)
 
     def _profile_items_not_found_message(self, result: ComparisonResult) -> Optional[str]:
         """Return the D-06 "not found" message for the active profile, or None.
