@@ -2,24 +2,17 @@
 phase: 03-compare-profiles-export
 reviewed: 2026-10-04T00:00:00Z
 depth: standard
-files_reviewed: 11
+files_reviewed: 4
 files_reviewed_list:
-  - src/gdtf_comparer/app.py
-  - src/gdtf_comparer/core/errors.py
-  - src/gdtf_comparer/core/profile_repository.py
-  - src/gdtf_comparer/gui/attribute_picker.py
   - src/gdtf_comparer/gui/main_window.py
-  - tests/conftest.py
-  - tests/core/test_profile_repository.py
+  - tests/gui/test_compare_list_match_indicator.py
   - tests/gui/test_profile_manage.py
-  - tests/gui/test_profile_portability.py
   - tests/gui/test_profile_toolbar.py
-  - tests/test_architecture.py
 findings:
   critical: 0
-  warning: 3
-  info: 3
-  total: 6
+  warning: 1
+  info: 2
+  total: 3
 status: issues_found
 ---
 
@@ -27,209 +20,131 @@ status: issues_found
 
 **Reviewed:** 2026-10-04T00:00:00Z
 **Depth:** standard
-**Files Reviewed:** 11
+**Files Reviewed:** 4
 **Status:** issues_found
 
 ## Summary
 
-This phase adds named compare profiles (save/load/rename/delete) backed by a
-single `profiles.json` file (`core/profile_repository.py`), a profile toolbar
-and Manage menu in `gui/main_window.py`, and `AttributePicker.set_checked()` /
-`_defaults_enabled` to make a profile load a true "replace, never merge"
-operation. The persistence layer is unusually careful: atomic same-folder
-writes via `os.open(O_EXCL)` + `fsync` + `os.replace`, a versioned schema that
-refuses newer-than-known files outright, strict size/UTF-8/shape validation,
-and 20+ unit tests covering idempotency, Unicode case-folding, path-safety of
-profile names, and crash-injection (`os.replace`/`os.fsync` failures). The GUI
-wiring (toolbar, Manage menu, D-06 "spec items not found" status reporting)
-is similarly well covered by three end-to-end test files.
+Incremental review of gap-closure plan 03-04, scoped only to what changed
+since the prior review's diff base: (1) G-03-1, splitting the single-row
+profile toolbar (`profile_row`) into two stacked `QHBoxLayout`s
+(`profile_combo_row`, `profile_actions_row`) inside a `QVBoxLayout`, to stop
+qt-material's chrome from clipping the dropdown/Save…/Manage widgets, and
+raising the Attributes panel's drag floor from 220px to 240px; and (2)
+G-03-2, a new per-file colored-dot match indicator on the "Compare with"
+list, computed from the existing `ComparisonRow.differs` data with no new
+comparison logic, reset to "unknown" on every file-list/target mutation and
+recomputed through the existing `_apply_attribute_selection` call site.
 
-No crashes, injection vectors, or data-loss paths were found. The issues below
-are all in the "quality/correctness" tier: a validation routine whose
-normalized return value is silently discarded on load, two Unicode
-control-character validation gaps relative to the module's own stated ASVS
-goal, and a few minor display/robustness nits. None of these corrupt stored
-data or crash the app; all are concrete, fixable in `core/profile_repository.py`.
+Both changes are narrowly scoped, well-commented, and the new indexing logic
+(`_update_match_indicators`) correctly matches `ComparisonRow.differs`'
+documented per-comparison ordering and defensively re-verifies path
+alignment between `compare_list` and `result.comparisons` before trusting
+either's ordering. No security issues, crashes, or data-loss paths were
+found. The one real gap is a stale-state bug: the match indicators are only
+ever reset/recomputed on file-list changes and on a *successful*
+`on_comparison_ready`, never when a new run starts or fails, so a dot can
+keep showing a previous run's match/differs color after the data it
+describes is no longer current.
 
 ## Warnings
 
-### WR-01: Loaded profile names are validated but never actually normalized
+### WR-01: Match indicator dots go stale during a re-run and after a failed re-run
 
-**File:** `src/gdtf_comparer/core/profile_repository.py:270-277, 297`
+**File:** `src/gdtf_comparer/gui/main_window.py:547-577` (`run_comparison`), `871-879` (`on_comparison_failed`)
 
-**Issue:** `_parse_payload` calls `normalize_profile_name(name)` purely to
-validate (catching `ProfileNameError`), then discards its return value and
-builds the `Profile` from the raw, un-normalized `name` string read from JSON:
+**Issue:** The feature's own stated invariant (`_update_match_indicators`
+docstring, lines 686-701) is "Resets every indicator to unknown when there
+is no current result... the dots always describe the comparison CURRENTLY
+on screen, never a stale one." In practice this invariant is only enforced
+inside `_update_match_indicators`/`_reset_match_indicators`, and those are
+never called from `run_comparison` or `on_comparison_failed`:
 
-```python
-name = entry.get("name")
-...
-try:
-    normalize_profile_name(name)          # <-- return value discarded
-except ProfileNameError:
-    raise self._damaged("a profile has an invalid name") from None
-...
-profiles.append(Profile(name=name, attributes=frozenset(pairs)))   # raw name
-```
+- `run_comparison` (line 558) calls `self.table_model.set_result(None)` to
+  clear the table before starting the worker, but does not reset the
+  "Compare with" dots. While the new comparison runs, the dots keep showing
+  the *previous* result's match/differs colors even though
+  `table_model.result()` is already `None`.
+- `on_comparison_failed` (line 871) also leaves `table_model.result()` as
+  `None` after a failed re-run, and shows "Comparison failed" in the status
+  bar, but never touches the dots either. If the user previously ran a
+  successful comparison (dots showing green/red) and a later re-run against
+  the same files fails (e.g. a file was deleted or became invalid on disk),
+  the dots keep showing the *stale, no-longer-trustworthy* colors from the
+  earlier successful run indefinitely, until the user changes the file list
+  or attribute selection.
 
-`normalize_profile_name` trims surrounding whitespace and NFC-normalizes
-Unicode form (that's the whole point of its name) -- but none of that is
-applied here. A `profiles.json` entry with `"name": "  Spec  "` (valid by the
-rules: non-empty after trimming, under 80 chars, no control characters) loads
-as a `Profile` whose `.name` is literally `"  Spec  "`, not `"Spec"`. That
-string is then shown verbatim in `profile_combo` (the dropdown), in
-`RENAME_PROFILE_PROMPT`'s pre-filled default, in `PROFILE_SAVED_TEMPLATE`/
-`PROFILE_RENAMED_TEMPLATE` status messages, and -- because `save()`/`rename()`/
-`delete()` all round-trip through `load_all()` and re-serialize every
-*other* profile unchanged via `_write_all` -- it is written back out
-untouched on every subsequent save of any other profile, perpetuating the
-un-normalized name forever.
+Given the feature's stated purpose (03-CONTEXT.md D-01: helping a user judge
+whether a comparison file is safe to substitute for the target), a green dot
+left over from a stale or failed run is a meaningfully misleading signal,
+not just a cosmetic nit.
 
-This can't be produced by this app's own GUI today (`save()`/`rename()` both
-call `normalize_profile_name()` and use *its* return value correctly), so the
-only way to trigger it is a hand-edited or externally-written
-`profiles.json` -- but the surrounding module explicitly documents defending
-against exactly that case (the whole versioned-schema, size-capped,
-shape-validated design exists because "every saved profile lives in one
-shared profiles.json" that other tools/versions might touch). Matching
-keys (`find`/`get`/`rename`/`delete`) still work correctly since
-`profile_name_key()` re-normalizes on every call regardless -- only the
-*display* string drifts, but it drifts permanently and silently.
-
-**Fix:** Use the normalized return value:
+**Fix:** Reset the indicators at the start of `run_comparison` (so "in
+progress" never shows a stale verdict) and in `on_comparison_failed`:
 
 ```python
-try:
-    name = normalize_profile_name(name)
-except ProfileNameError:
-    raise self._damaged("a profile has an invalid name") from None
+def run_comparison(self) -> None:
+    ...
+    self.table_model.set_result(None)
+    self._reset_match_indicators()  # add this
+    self.run_button.setEnabled(False)
+    ...
+
+def on_comparison_failed(self, message: str) -> None:
+    self.table_model.set_result(None)
+    self._reset_match_indicators()  # add this
+    self.statusBar().showMessage("Comparison failed")
+    self._show_error(message)
 ```
-
-### WR-02: Profile names allow Unicode bidi/format control characters
-
-**File:** `src/gdtf_comparer/core/profile_repository.py:79`
-
-**Issue:** `normalize_profile_name`'s own docstring and module header cite
-"ASVS V5" as the bar for name validation, and it does block `Cc` (control)
-and `Cs` (surrogate) Unicode categories:
-
-```python
-if any(unicodedata.category(character) in ("Cc", "Cs") for character in normalized):
-    raise ProfileNameError(...)
-```
-
-It does not block the `Cf` ("format") category, which includes bidirectional
-control characters such as U+202E RIGHT-TO-LEFT OVERRIDE, U+200E/U+200F
-directional marks, and zero-width joiners/non-joiners. A profile name
-containing these (e.g. crafted into a shared/hand-edited `profiles.json`, or
-pasted from an untrusted source into the Save/Rename dialog) can render
-misleadingly in the dropdown, the Rename/Delete confirmation dialogs, and
-status-bar messages -- the exact "Trojan Source"-style spoofing class ASVS
-V5 input-validation guidance is meant to catch. Impact here is limited (this
-is a local, single-user JSON file, not a network-shared or multi-tenant
-store), but the gap is real and inconsistent with the standard the code
-itself invokes.
-
-**Fix:** Extend the blocked-category check to include `Cf`, or more
-narrowly strip/reject the specific bidi-control code points:
-
-```python
-_BIDI_CONTROL_CHARS = {"‎", "‏", "‪", "‫", "‬", "‭", "‮"}
-if any(
-    unicodedata.category(character) in ("Cc", "Cs", "Cf")
-    or character in _BIDI_CONTROL_CHARS
-    for character in normalized
-):
-    raise ProfileNameError(
-        "Profile names can't contain line breaks, tabs, directional marks or other "
-        "control characters."
-    )
-```
-
-### WR-03: Attribute/category pair strings loaded from disk have no character-class validation
-
-**File:** `src/gdtf_comparer/core/profile_repository.py:286-289`
-
-**Issue:** Unlike profile *names* (validated by `normalize_profile_name`,
-modulo WR-02), the `(category, attribute)` pair strings read from a saved
-profile's `"attributes"` list are checked only for "is a string and is
-non-empty":
-
-```python
-if not isinstance(category, str) or not category:
-    raise self._damaged("unexpected layout")
-if not isinstance(attribute, str) or not attribute:
-    raise self._damaged("unexpected layout")
-```
-
-Nothing rejects embedded control characters (including a literal `"\n"`),
-surrogates, or bidi overrides. These strings are later rendered directly as
-`QTreeWidgetItem` leaf/section labels in `AttributePicker.set_catalog`
-(`gui/attribute_picker.py:113,123`) and joined into the D-06 "spec items not
-found" status message (`names=", ".join(attribute for _, attribute in
-sorted(missing))` in `main_window.py:605`). A hand-edited or externally
-produced `profiles.json` can therefore inject a multi-line or
-visually-misleading label into the Attributes tree or status bar. This is a
-UI-integrity gap, not a code-execution risk (Qt widgets don't interpret these
-as markup), but it is the same validation gap as WR-02, applied to a second
-field that the module's own design treats as equally untrusted input (it
-already validates shape, size, and name content this strictly for exactly
-that reason).
-
-**Fix:** Reuse (or factor out) the same control/format-character check used
-for names, e.g. a shared `_is_display_safe(text: str) -> bool` helper called
-for `category` and `attribute` alongside the existing non-empty check.
 
 ## Info
 
-### IN-01: App-data directory permissions aren't retroactively tightened
+### IN-01: `set_target_file("")` skips the match-indicator reset via an early return
 
-**File:** `src/gdtf_comparer/core/profile_repository.py:469`
+**File:** `src/gdtf_comparer/gui/main_window.py:464-497`
 
-**Issue:** `os.makedirs(self._dir, mode=0o700, exist_ok=True)` only applies
-`mode=0o700` when it actually creates the directory; if `self._dir` already
-exists with broader permissions (e.g. created by a different process or a
-permissive umask before this app ever ran), `exist_ok=True` leaves its mode
-untouched. `profiles.json` itself is still written with `0o600` (verified by
-`test_profiles_file_is_owner_only`), so file *contents* stay owner-only
-regardless -- this only affects whether other local users can list the
-directory's file names.
+**Issue:** `set_target_file` returns early when `path` is falsy (line
+478-479), *before* reaching `self._reset_match_indicators()` at line 497.
+Every current caller (the file dialog in `select_target_file`, and every
+test) only ever passes a non-empty path, so this is not reachable today.
+But `set_target_file` is a public method on `MainWindow`, and the empty-path
+branch exists specifically to represent "no target selected" — if any future
+caller (or a "Clear target" action) uses it that way, the Compare list's
+dots would keep showing whatever match/differs state was last computed
+against the now-cleared target, silently violating the same "never stale"
+invariant WR-01 is about.
 
-**Fix:** Optionally `os.chmod(self._dir, 0o700)` after `makedirs` regardless
-of whether it already existed, if directory-listing privacy is a stated goal.
+**Fix:** Move the reset above the early return, or add it to the empty-path
+branch as well:
 
-### IN-02: A profiles.json deleted mid-read is reported as "damaged" rather than missing
+```python
+self.target_file = path
+self.target_edit.setText(path)
 
-**File:** `src/gdtf_comparer/core/profile_repository.py:187-194`
+if not path:
+    self._reset_match_indicators()
+    return
+```
 
-**Issue:** `load_all()` checks `os.path.exists(self._path)` and returns `[]`
-if absent, but if the file is removed by another process between that check
-and the subsequent `open()` call, the resulting `FileNotFoundError` is caught
-by the generic `except OSError as exc: raise self._damaged(...)` handler,
-producing a misleading "...is damaged (FileNotFoundError). It was left
-unchanged." message for a file that was simply deleted, not corrupted. Low
-probability (requires a second process/instance racing this one) and not
-reachable in this app's own single-process flow.
+### IN-02: `_reset_match_indicators` is a same-body wrapper around `_mark_all_compare_items_unknown`
 
-**Fix:** Special-case `FileNotFoundError` in the `except OSError` branch to
-return `[]` (treat as "no file") instead of raising `_damaged`.
+**File:** `src/gdtf_comparer/gui/main_window.py:664-684`
 
-### IN-03: Renaming a profile to its unchanged name still reports a rename
+**Issue:** `_reset_match_indicators` (lines 677-684) has no logic of its
+own beyond calling `_mark_all_compare_items_unknown()` once; the two
+docstrings describe the same action from two different "callers' intent"
+angles, but there's no behavioral difference between the two methods today.
+This is harmless, but it's an extra indirection a future reader has to trace
+through for no functional reason, and increases the chance a future edit is
+made to only one of the two names when both were intended to change
+together.
 
-**File:** `src/gdtf_comparer/gui/main_window.py:823-837`
-
-**Issue:** `ProfileRepository.rename()` correctly no-ops (returns the
-existing `Profile`, writes nothing) when the new name normalizes to exactly
-the same stored name. `_rename_selected_profile`, however, always shows
-`PROFILE_RENAMED_TEMPLATE.format(old=old_name, new=profile.name)` after a
-successful call, so confirming the rename dialog with the exact same text
-(or a change that normalizes away, e.g. adding only trailing whitespace)
-shows "Renamed profile 'Spec' to 'Spec'." in the status bar even though
-nothing changed on disk.
-
-**Fix:** Compare `profile_name_key(old_name) == profile_name_key(profile.name)`
-and `old_name == profile.name` before choosing the status message; show a
-neutral "No change." message (or nothing) when both match exactly.
+**Fix:** Either inline `_mark_all_compare_items_unknown`'s body into
+`_reset_match_indicators` and have `_update_match_indicators` call
+`_reset_match_indicators()` directly for its own unknown-fallback paths, or
+drop `_reset_match_indicators` and call `_mark_all_compare_items_unknown()`
+directly from the three file-list mutators. Either removes the redundant
+pass-through without losing either docstring's intent.
 
 ---
 
