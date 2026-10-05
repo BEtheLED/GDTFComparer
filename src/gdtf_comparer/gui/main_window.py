@@ -153,6 +153,15 @@ MAX_COLUMN_WIDTH_PX = 280
 # once -- past this point a horizontal scrollbar is the lesser evil.
 MIN_VALUE_COLUMN_WIDTH_PX = 120
 
+# The Attributes panel's drag floor (D-02: the panel cannot be fully
+# collapsed, but the user can still narrow it). Raised from 220 to 240 as
+# part of the G-03-1 fix (03-UAT.md) because 230 px of group width is the
+# measured breakeven where the stacked Save…/Manage row (profile_actions_row,
+# below) stops being squeezed below its own sizeHint (03-04-PLAN.md Design
+# notes); the unchanged 260 px default already clears this with room to
+# spare.
+ATTRIBUTES_PANEL_MIN_WIDTH_PX = 240
+
 
 def _normalized_path(path: str) -> str:
     """Return a canonical key for path so alias forms compare equal.
@@ -275,9 +284,15 @@ class MainWindow(QMainWindow):
         self.attributes_group = QGroupBox("Attributes", central)
         attributes_layout = QVBoxLayout(self.attributes_group)
 
-        # Profile toolbar row (Phase 3 D-02, D-07): sits directly above the
-        # attribute picker, one row holding the load dropdown and Save….
-        self.profile_row = QHBoxLayout()
+        # Profile toolbar row (Phase 3 D-02, D-07; split into two stacked
+        # rows for G-03-1, 03-UAT.md): sits directly above the attribute
+        # picker as one consolidated block -- row 1 is the load dropdown
+        # alone, row 2 is Save…+Manage -- rather than squeezing all three
+        # widgets into a single row, which qt-material's uppercase +
+        # padding chrome was clipping (03-04-PLAN.md Design notes).
+        self.profile_row = QVBoxLayout()
+
+        self.profile_combo_row = QHBoxLayout()
         self.profile_combo = QComboBox(self.attributes_group)
         self.profile_combo.setSizeAdjustPolicy(
             QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
@@ -286,12 +301,14 @@ class MainWindow(QMainWindow):
         self.profile_combo.setMaxVisibleItems(15)
         self.profile_combo.setToolTip(PROFILE_COMBO_TOOLTIP)
         self.profile_combo.activated.connect(self._load_selected_profile)
-        self.profile_row.addWidget(self.profile_combo, 1)
+        self.profile_combo_row.addWidget(self.profile_combo, 1)
+        self.profile_row.addLayout(self.profile_combo_row)
 
+        self.profile_actions_row = QHBoxLayout()
         self.save_profile_button = QPushButton(SAVE_PROFILE_LABEL, self.attributes_group)
         self.save_profile_button.setToolTip(SAVE_PROFILE_TOOLTIP)
         self.save_profile_button.clicked.connect(self._save_profile)
-        self.profile_row.addWidget(self.save_profile_button)
+        self.profile_actions_row.addWidget(self.save_profile_button, 1)
 
         self.manage_profile_button = QToolButton(self.attributes_group)
         self.manage_profile_button.setText(MANAGE_PROFILES_LABEL)
@@ -303,7 +320,8 @@ class MainWindow(QMainWindow):
         self.delete_profile_action = self.manage_profile_menu.addAction(DELETE_PROFILE_LABEL)
         self.delete_profile_action.triggered.connect(self._delete_selected_profile)
         self.manage_profile_button.setMenu(self.manage_profile_menu)
-        self.profile_row.addWidget(self.manage_profile_button)
+        self.profile_actions_row.addWidget(self.manage_profile_button, 1)
+        self.profile_row.addLayout(self.profile_actions_row)
 
         # Only toggles enabled state (never loads a profile): the dropdown's
         # own activated connection (above) is the sole load trigger, so
@@ -315,7 +333,7 @@ class MainWindow(QMainWindow):
 
         self.attribute_picker = AttributePicker(self.attributes_group)
         attributes_layout.addWidget(self.attribute_picker)
-        self.attributes_group.setMinimumWidth(220)
+        self.attributes_group.setMinimumWidth(ATTRIBUTES_PANEL_MIN_WIDTH_PX)
         self.attribute_picker.selection_changed.connect(self._apply_attribute_selection)
 
         self.results_panel = QWidget(central)
