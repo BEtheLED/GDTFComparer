@@ -108,7 +108,7 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 3/3 plans executed
+**Plans**: 3/4 plans executed (3 original + 1 gap closure)
 
 Plans:
 **Wave 1**
@@ -124,6 +124,12 @@ Plans:
 - [x] 03-03-PLAN.md — D-05: Manage menu in the same row (D-07) with Rename… (conflicts refused) and Delete… (asks first, default No); selection and comparison never touched; end-of-phase human check (wave 3)
 
 **Scope note (2026-10-04):** CSV export (formerly EXPORT-01/EXPORT-02) was dropped from this phase per the Phase 3 discussion scope flag — see REQUIREMENTS.md "Out of Scope".
+
+**Gap closure** *(from 03-UAT.md G-03-1 and G-03-2)*
+
+**Wave 4** *(blocked on 03-03)*
+
+- [ ] 03-04-PLAN.md — G-03-1/G-03-2: two-row profile toolbar so the dropdown, Save… and Manage never clip in the 260 px Attributes panel, plus a green/red/gray match-indicator dot on each "Compare with" file reusing ComparisonRow.differs (wave 4)
 
 ### Phase 4: Standalone Packaging
 
