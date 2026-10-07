@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 03-compare-profiles-export
 source: [03-VERIFICATION.md]
 started: 2026-10-05T12:05:00Z
-updated: 2026-10-07T14:10:00Z
+updated: 2026-10-07T14:40:00Z
 ---
 
 ## Current Test
@@ -66,8 +66,21 @@ blocked: 0
   reason: "User reported: I don't think that it is actually looking at more than 1 GDTF file as any other file I add just says NA not what the value is in the file."
   severity: major
   test: 2
-  artifacts: []
-  missing: []
+  root_cause: "Every file IS parsed correctly, but rows are matched across files by exact element name (the manufacturer's own internal geometry/model-part name inside each file's description.xml), per Phase 01 decision D-11. Two different fixtures almost never reuse the same internal names, so a row keyed to the target's 'Base 1 LED 1/1/1 Pixel 1' beam never matches a comparison file's 'Body/Beam' or 'One PATT/Patt beam' — the target cell shows its real value and every comparison column shows N/A on that row, while the comparison file's real value for the same logical attribute (e.g. BeamAngle) lands on a SEPARATE row further down the table where the target column is N/A. Reproduced directly against core.comparator.compare() with the user's three actual files (no GUI involved); confirmed not a parsing failure (all 3 files parsed with values), not a column-index bug (same-file-vs-itself comparison fills in correctly), and not the stale-window issue from G-03-1 (reproduced from current source). Existing tests never caught this because every test fixture reuses identical geometry/model names across target and comparison fixtures. This is also the reason the red match-indicator dots (G-03-2, phase 03 round 1) show 'different' for everything — every row looks like a total mismatch because the comparison side reads as N/A. This is a pre-existing design gap from Phase 01, not a phase 03 regression."
+  artifacts:
+    - path: "src/gdtf_comparer/core/extract.py"
+      issue: "Lines ~413-415 key Beam attribute rows by each file's own geometry element path, and ~426-431 key model-dimension rows by each file's own model name — both become part of cross-file row identity even though these names are manufacturer-chosen and not comparable between different fixtures."
+    - path: "src/gdtf_comparer/core/comparator.py"
+      issue: "compare() (~L35-68) builds the row set from the union of exact (category, element_path, attribute) keys and does an exact dict lookup per file — there is no concept of matching rows across files by attribute meaning rather than by exact element name."
+    - path: "src/gdtf_comparer/core/models.py"
+      issue: "AttributeKey (~L47-72) includes element_path in equality/hash, which is correct for de-duplicating within one file (Phase 01 decision D-11) but is also what breaks cross-file matching."
+    - path: "tests/core/test_comparator.py"
+      issue: "Every cross-file test fixture reuses identical geometry/model element names for target and comparison fixtures, so this failure mode has no regression coverage."
+  missing:
+    - "A product decision on how to line up attributes across fixtures whose internal part names and part counts differ (e.g. match the Nth beam to the Nth beam, pick one 'primary' beam per fixture, or show multiple values per cell) — this is a UX/behavior choice, not purely a code fix."
+    - "A decision on whether per-model width/height/length rows (keyed to mesh part names like lens/pigtail/body that have no real counterpart between different fixtures) still make sense to show across files at all."
+    - "A regression test comparing two fixtures with different geometry/model names, including boundary cases (one beam vs two beams, zero beams vs one)."
+  debug_session: ".planning/debug/comparison-engine-only-reads-target-file.md"
 
 ## Previous Round (closed)
 
