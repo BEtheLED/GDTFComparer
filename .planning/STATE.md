@@ -78,6 +78,8 @@ Recent decisions affecting current work:
 - [Phase 02]: [Phase 02] Beam and Model attribute extraction were converted to route through the same shared presence-check helper (_declared_values) as the new DMX attribute-definition extraction, removing a hand-written per-category presence loop
 - [Phase 02]: [Phase 02]: Confirmed by measurement that qt-material's QTableView::item stylesheet rule suppresses BackgroundRole painting -- a dedicated BackgroundBrushDelegate is required for DIFF-01's highlight to be visible on screen, not just present in model data
 - [Phase 02]: [Phase 02]: ComparisonTableModel stays theme-agnostic (no gui.theme or QApplication import); MainWindow is the sole place that resolves a theme name to a color and hands the model a ready QBrush, recomputed once per theme change and cached, never per painted cell
+- [Phase 03 gap G-03-3]: Cross-file beam-attribute rows match by POSITION (1st beam vs 1st beam, 2nd vs 2nd, ...) rather than by each file's own internal element name — user decision 2026-10-07, after diagnosis found exact-name matching (Phase 01 D-11) means different manufacturers' fixtures almost never line up, showing N/A everywhere instead of real comparison values.
+- [Phase 03 gap G-03-3]: Per-model physical-dimension rows (lens/housing/pigtail width/height/length) are dropped from cross-file comparison entirely — user decision 2026-10-07; these mesh part names have no meaningful counterpart between different fixtures.
 
 ### Pending Todos
 

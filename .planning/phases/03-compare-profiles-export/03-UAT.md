@@ -77,10 +77,11 @@ blocked: 0
     - path: "tests/core/test_comparator.py"
       issue: "Every cross-file test fixture reuses identical geometry/model element names for target and comparison fixtures, so this failure mode has no regression coverage."
   missing:
-    - "A product decision on how to line up attributes across fixtures whose internal part names and part counts differ (e.g. match the Nth beam to the Nth beam, pick one 'primary' beam per fixture, or show multiple values per cell) — this is a UX/behavior choice, not purely a code fix."
-    - "A decision on whether per-model width/height/length rows (keyed to mesh part names like lens/pigtail/body that have no real counterpart between different fixtures) still make sense to show across files at all."
-    - "A regression test comparing two fixtures with different geometry/model names, including boundary cases (one beam vs two beams, zero beams vs one)."
+    - "Rework beam-level row matching (currently keyed by exact element_path) to match beams ACROSS files by POSITION: the target's 1st beam compares against each comparison file's 1st beam, 2nd vs 2nd, etc. (user decision, 2026-10-07). When one file has fewer beams than another, the missing side shows N/A for that beam index — that is a true per-file absence, not a matching failure."
+    - "Drop per-model width/height/length rows (lens/housing/pigtail dimensions, keyed by mesh part name) from cross-file comparison entirely (user decision, 2026-10-07) — these have no meaningful counterpart between different manufacturers' fixtures. Scope this to the cross-file comparison table only; do not change how these are extracted/stored, only how(/whether) they're matched and shown across files."
+    - "A regression test comparing two fixtures with different geometry/model names and different beam counts, including boundary cases (one beam vs two beams, zero beams vs one), asserting position-based matching lines up BeamAngle etc. on the same row and that dimension rows no longer appear in cross-file comparisons."
   debug_session: ".planning/debug/comparison-engine-only-reads-target-file.md"
+  decision: "User decision (2026-10-07): beam-level attributes match by position across files (1st-to-1st, 2nd-to-2nd, ...); per-model physical-dimension rows are dropped from cross-file comparison entirely."
 
 ## Previous Round (closed)
 
