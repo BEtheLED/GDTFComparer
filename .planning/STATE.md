@@ -81,7 +81,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None yet.
+- [2026-10-07] [general] Add min/max output-percentage filter for comparisons — [todo file](.planning/todos/pending/2026-10-07-add-min-max-output-percentage-filter-for-comparisons.md)
 
 ### Blockers/Concerns
 
