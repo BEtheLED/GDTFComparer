@@ -1,13 +1,20 @@
 ---
 phase: 03-compare-profiles-export
-reviewed: 2026-10-04T00:00:00Z
+reviewed: 2026-10-08T00:38:14Z
 depth: standard
-files_reviewed: 4
+files_reviewed: 11
 files_reviewed_list:
   - src/gdtf_comparer/gui/main_window.py
   - tests/gui/test_compare_list_match_indicator.py
   - tests/gui/test_profile_manage.py
   - tests/gui/test_profile_toolbar.py
+  - src/gdtf_comparer/core/comparator.py
+  - tests/core/test_comparator.py
+  - tests/gui/test_attribute_selection.py
+  - tests/gui/test_cross_fixture_rows.py
+  - tests/gui/test_differences_only_toggle.py
+  - tests/gui/test_namespaced_rows.py
+  - tests/gui/test_unspecified_values.py
 findings:
   critical: 0
   warning: 0
@@ -18,34 +25,50 @@ status: issues_found
 
 # Phase 03: Code Review Report
 
-**Reviewed:** 2026-10-04T00:00:00Z
+**Reviewed:** 2026-10-08T00:38:14Z
 **Depth:** standard
-**Files Reviewed:** 4
-**Status:** issues_found (WR-01 fixed post-review; 2 non-blocking Info items remain open)
+**Files Reviewed:** 11
+**Status:** issues_found (2 non-blocking Info items remain open from the 03-04 review; no new issues found in the 03-05 gap-closure increment)
 
 ## Summary
 
-Incremental review of gap-closure plan 03-04, scoped only to what changed
-since the prior review's diff base: (1) G-03-1, splitting the single-row
-profile toolbar (`profile_row`) into two stacked `QHBoxLayout`s
-(`profile_combo_row`, `profile_actions_row`) inside a `QVBoxLayout`, to stop
-qt-material's chrome from clipping the dropdown/Save…/Manage widgets, and
-raising the Attributes panel's drag floor from 220px to 240px; and (2)
-G-03-2, a new per-file colored-dot match indicator on the "Compare with"
-list, computed from the existing `ComparisonRow.differs` data with no new
-comparison logic, reset to "unknown" on every file-list/target mutation and
-recomputed through the existing `_apply_attribute_selection` call site.
+This REVIEW.md now covers two review passes over phase 03:
 
-Both changes are narrowly scoped, well-commented, and the new indexing logic
-(`_update_match_indicators`) correctly matches `ComparisonRow.differs`'
-documented per-comparison ordering and defensively re-verifies path
-alignment between `compare_list` and `result.comparisons` before trusting
-either's ordering. No security issues, crashes, or data-loss paths were
-found. The one real gap is a stale-state bug: the match indicators are only
-ever reset/recomputed on file-list changes and on a *successful*
-`on_comparison_ready`, never when a new run starts or fails, so a dot can
-keep showing a previous run's match/differs color after the data it
-describes is no longer current.
+1. **03-04** (original pass, 2026-10-04): `gui/main_window.py`'s profile
+   toolbar restructure (G-03-1) and the per-file match-indicator dots
+   (G-03-2). One Warning (stale match-indicator dots) was found and has
+   since been **fixed** (commit `564217d`); two Info items remain open.
+2. **03-05** (this incremental pass, 2026-10-08): the gap-closure plan for
+   G-03-3, which changes `core/comparator.py` to match Beam rows across
+   files by **position** (1st beam vs 1st beam, 2nd vs 2nd, ...) instead of
+   by each file's own geometry-element name, and drops per-model
+   Width/Height/Length dimension rows from the cross-file comparison
+   entirely. Eight existing GUI tests across four files were rebaselined to
+   the new positional contract, and one new GUI test file
+   (`test_cross_fixture_rows.py`) and sixteen new core tests were added.
+
+**03-05 assessment:** the new `_cross_file_attributes()` helper and its
+integration into `compare()` were read line-by-line against
+`core/extract.py`'s attribute-extraction contract, and independently
+exercised against the real GDTF-parsing path (not just synthetic
+`FixtureModel` objects) to rule out a hypothesized "beam with zero declared
+attributes creates a position gap and silently misaligns later beams"
+defect -- `extract._declared_values()` always yields all 6 `BEAM_ATTRIBUTES`
+keys per geometry beam node (value `None` when undeclared), so no beam is
+ever invisible to the position counter regardless of how little it
+declares; the hypothesis did not hold up under an end-to-end repro. The
+per-model dimension filter is scoped tightly enough (category +
+non-fixture-level path + name membership in `extract.MODEL_ATTRIBUTES`) that
+it cannot accidentally swallow a real comparison row given what
+`extract.py` currently produces. All 8 rebaselined assertions and all 16 new
+core tests were run (not just read) and pass, and the full suite (276
+tests) passes with no other breakage, confirming the rebaseline is complete
+and no dependent test elsewhere in the tree was missed. No Critical,
+Warning, or new Info issues were found in the 03-05 file set.
+
+The two Info items below originate from the 03-04 pass and concern
+`gui/main_window.py`, which was not touched by 03-05 -- they remain open and
+are carried forward unchanged.
 
 ## Warnings
 
@@ -57,7 +80,7 @@ from both `run_comparison` (right after `table_model.set_result(None)`) and
 `tests/gui/test_compare_list_match_indicator.py`:
 `test_running_again_resets_stale_indicators_before_new_result` and
 `test_failed_comparison_resets_stale_indicators_to_unknown`. Full suite
-(258 tests) passes.
+(258 tests, at the time of that fix) passes.
 
 **File:** `src/gdtf_comparer/gui/main_window.py:547-577` (`run_comparison`), `871-879` (`on_comparison_failed`)
 
@@ -156,6 +179,6 @@ pass-through without losing either docstring's intent.
 
 ---
 
-_Reviewed: 2026-10-04T00:00:00Z_
+_Reviewed: 2026-10-08T00:38:14Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
