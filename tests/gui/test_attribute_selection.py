@@ -8,9 +8,10 @@ from gdtf_comparer.gui import main_window as main_window_module
 from gdtf_comparer.gui.main_window import MainWindow
 from gdtf_comparer.gui.table_model import ComparisonTableModel
 
-# Two beam geometries (12 rows: 6 BEAM_ATTRIBUTES x 2 beams) + one
-# fixture-level Weight row + two models' Width/Height/Length (6 rows) = 19
-# source rows once compare() stops filtering by category.
+# Two beam geometries (12 rows: 6 BEAM_ATTRIBUTES x 2 beam positions) plus
+# one fixture-level Weight row = 13 source rows; the two models' Width/
+# Height/Length are extracted but are not part of a cross-file comparison
+# (03-UAT.md G-03-3).
 _GEOMETRIES_XML = (
     '<Geometry Name="Body">'
     '<Geometry Name="Head1"><Beam Name="Beam" BeamAngle="10"/></Geometry>'
@@ -68,8 +69,8 @@ def test_picker_lists_default_categories_checked(qtbot, make_gdtf):
     assert (CATEGORY_BEAM, "BeamAngle") in checked
     assert (CATEGORY_PHYSICAL, "Weight") in checked
 
-    assert window.table_view.model().rowCount() == 19
-    assert window.table_model.rowCount() == 19
+    assert window.table_view.model().rowCount() == 13
+    assert window.table_model.rowCount() == 13
 
 
 def test_unchecking_attribute_hides_its_rows(qtbot, make_gdtf):
@@ -81,18 +82,18 @@ def test_unchecking_attribute_hides_its_rows(qtbot, make_gdtf):
         leaf.setCheckState(0, Qt.CheckState.Unchecked)
 
     view_model = window.table_view.model()
-    assert view_model.rowCount() == 17
+    assert view_model.rowCount() == 11
     for row in range(view_model.rowCount()):
         index = view_model.index(row, ComparisonTableModel.COL_ATTRIBUTE)
         assert view_model.data(index) != "BeamAngle"
 
     assert (
-        window.table_model.find_row(CATEGORY_BEAM, "Body/Head1/Beam", "BeamAngle") >= 0
+        window.table_model.find_row(CATEGORY_BEAM, "Beam 1", "BeamAngle") >= 0
     )
 
     with qtbot.waitSignal(picker.selection_changed, timeout=1000):
         leaf.setCheckState(0, Qt.CheckState.Checked)
-    assert window.table_view.model().rowCount() == 19
+    assert window.table_view.model().rowCount() == 13
 
 
 def test_side_panel_is_always_visible(qtbot, make_gdtf):
@@ -117,7 +118,7 @@ def test_selection_survives_rerun(qtbot, make_gdtf):
 
     assert (CATEGORY_BEAM, "BeamAngle") not in picker.checked_attributes()
     assert (CATEGORY_BEAM, "FieldAngle") in picker.checked_attributes()
-    assert window.table_view.model().rowCount() == 17
+    assert window.table_view.model().rowCount() == 11
 
 
 def test_no_attributes_checked_shows_empty_table_and_hint(qtbot, make_gdtf):
@@ -130,7 +131,7 @@ def test_no_attributes_checked_shows_empty_table_and_hint(qtbot, make_gdtf):
         picker.section_item(CATEGORY_PHYSICAL).setCheckState(0, Qt.CheckState.Unchecked)
 
     assert window.table_view.model().rowCount() == 0
-    assert window.table_model.rowCount() == 19
+    assert window.table_model.rowCount() == 13
     assert (
         window.statusBar().currentMessage()
         == main_window_module.NO_ATTRIBUTES_SELECTED_MESSAGE
@@ -149,4 +150,4 @@ def test_search_does_not_change_table_rows(qtbot, make_gdtf):
 
     qtbot.keyClicks(window.attribute_picker.search_edit, "angle")
 
-    assert window.table_view.model().rowCount() == 19
+    assert window.table_view.model().rowCount() == 13

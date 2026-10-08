@@ -1,4 +1,7 @@
-"""App-level proof that namespaced Beam and Model rows render distinctly (D-11)."""
+"""App-level proof that two beams in one file still render as distinct rows
+(Phase 01 D-11), labelled by position ("Beam 1", "Beam 2") across files
+since 03-UAT.md G-03-3 -- and that per-model dimension rows are no longer
+part of the cross-file comparison."""
 
 from PySide6.QtCore import Qt
 
@@ -42,17 +45,21 @@ def test_table_shows_distinct_element_paths(qtbot, make_gdtf):
 
     model = window.table_model
 
-    head1_row = model.find_row(CATEGORY_BEAM, "Body/Head1/Beam", "BeamAngle")
-    head2_row = model.find_row(CATEGORY_BEAM, "Body/Head2/Beam", "BeamAngle")
+    head1_row = model.find_row(CATEGORY_BEAM, "Beam 1", "BeamAngle")
+    head2_row = model.find_row(CATEGORY_BEAM, "Beam 2", "BeamAngle")
     assert head1_row >= 0
     assert head2_row >= 0
     assert head1_row != head2_row
 
-    assert model.data(model.index(head1_row, model.COL_ELEMENT)) == "Body/Head1/Beam"
-    assert model.data(model.index(head2_row, model.COL_ELEMENT)) == "Body/Head2/Beam"
+    assert model.data(model.index(head1_row, model.COL_ELEMENT)) == "Beam 1"
+    assert model.data(model.index(head2_row, model.COL_ELEMENT)) == "Beam 2"
+    assert model.data(model.index(head1_row, model.COL_TARGET)) == "10"
+    assert model.data(model.index(head2_row, model.COL_TARGET)) == "30"
 
-    width_row = model.find_row(CATEGORY_PHYSICAL, "Head", "Width")
-    assert width_row >= 0
+    assert model.find_row(CATEGORY_PHYSICAL, "Head", "Width") == -1
+    assert not any(
+        row.key.attribute in ("Width", "Height", "Length") for row in model.result().rows
+    )
 
     weight_row = model.find_row(CATEGORY_PHYSICAL, "", "Weight")
     assert weight_row >= 0

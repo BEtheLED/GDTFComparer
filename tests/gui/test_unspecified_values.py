@@ -59,7 +59,7 @@ def test_omitted_beam_attribute_cell_reads_na(qtbot, make_gdtf):
     window = _run(qtbot, target, comparison)
     model = window.table_model
 
-    field_angle_row = model.find_row(CATEGORY_BEAM, "Head/Beam", "FieldAngle")
+    field_angle_row = model.find_row(CATEGORY_BEAM, "Beam 1", "FieldAngle")
     assert field_angle_row >= 0
 
     target_cell = model.data(model.index(field_angle_row, model.COL_TARGET))

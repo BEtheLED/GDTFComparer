@@ -34,7 +34,7 @@ _COMPARISON_ATTRIBUTES_XML = (
 )
 
 _EXPECTED_DIFFERING_TRIPLES = (
-    (CATEGORY_BEAM, "Head/Beam", "BeamAngle"),
+    (CATEGORY_BEAM, "Beam 1", "BeamAngle"),
     ("DMX: Position", "Pretty", "Pan"),
     ("DMX: Position", "Feature", "Pan"),
     ("DMX: Position", "PhysicalUnit", "Pan"),
