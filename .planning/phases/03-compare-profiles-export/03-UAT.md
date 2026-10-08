@@ -1,14 +1,29 @@
 ---
-status: diagnosed
+status: testing
 phase: 03-compare-profiles-export
 source: [03-VERIFICATION.md]
 started: 2026-10-05T12:05:00Z
-updated: 2026-10-07T14:40:00Z
+updated: 2026-10-08T00:50:00Z
 ---
 
 ## Current Test
 
-[testing complete]
+number: 3
+name: Re-test G-03-3 fix on the user's real fixture files in the live app
+expected: |
+  Re-run the exact comparison the user originally reported as broken: target
+  Astera AF250 LeoFresnel vs. comparisons Prolights EclPendantTU_60 and Robe
+  OnePATT (the user's own files from ~/Downloads). The Element column reads
+  "Beam 1" for the first six rows, and every column now shows a real number
+  instead of N/A -- Beam Angle 60 / 58.1 / 58, Field Angle 107 / 79.8 / 90,
+  Power Consumption 250 / 200 / 40, Luminous Flux 7118 / 10981 / 240, Color
+  Temperature 5500 / 3000 / 8000, Beam Type Wash / Wash / Wash. A second group
+  of six "Beam 2" rows shows the Astera's values with N/A for the other two
+  fixtures (genuinely correct -- the Astera has two light sources, the other
+  two only have one). Physical Properties shows just one row, Weight (16.32 /
+  7.3 / 12); the old lens/housing/pigtail width/height/length rows are gone.
+  Both Compare-with dots are red.
+awaiting: user response
 
 ## Tests
 
@@ -35,12 +50,17 @@ result: issue
 reported: "I don't think that it is actually looking at more than 1 GDTF file as any other file I add just says NA not what the value is in the file."
 severity: major
 
+### 3. Re-test G-03-3 fix on the user's real fixture files in the live app
+expected: |
+  See "Current Test" above for the full expected result.
+result: pending
+
 ## Summary
 
-total: 2
+total: 3
 passed: 1
 issues: 1
-pending: 0
+pending: 1
 skipped: 0
 blocked: 0
 
@@ -82,6 +102,7 @@ blocked: 0
     - "A regression test comparing two fixtures with different geometry/model names and different beam counts, including boundary cases (one beam vs two beams, zero beams vs one), asserting position-based matching lines up BeamAngle etc. on the same row and that dimension rows no longer appear in cross-file comparisons."
   debug_session: ".planning/debug/comparison-engine-only-reads-target-file.md"
   decision: "User decision (2026-10-07): beam-level attributes match by position across files (1st-to-1st, 2nd-to-2nd, ...); per-model physical-dimension rows are dropped from cross-file comparison entirely."
+  status_update: "Fix implemented by gap-closure plan 03-05 (2026-10-08): core/comparator.py now matches Beam rows by position via a new _cross_file_attributes() helper and drops per-model dimension rows from cross-file comparison. Verified independently by 03-VERIFICATION.md (code read, 3 targeted tests + full 276-test suite re-run, scope-boundary git-diff gate on extract.py/models.py/repository.py/gui all exit 0). NOT yet marked resolved -- awaiting the human re-test (UAT test 3 above) on the user's own real fixture files in the live app before this gap can close."
 
 ## Previous Round (closed)
 
