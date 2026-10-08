@@ -108,7 +108,7 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 4/5 plans executed (3 original + 2 gap closure)
+**Plans**: 5/5 plans executed (3 original + 2 gap closure)
 
 Plans:
 **Wave 1**
@@ -135,7 +135,7 @@ Plans:
 
 **Wave 5** *(blocked on 03-04)*
 
-- [ ] 03-05-PLAN.md — G-03-3: comparison files' real values line up with the target's rows — beams matched across files by position ("Beam 1", "Beam 2", …), per-model width/height/length rows dropped from the cross-file comparison (both per the user's 2026-10-07 decisions); regression tests with differently named fixtures and unequal beam counts (wave 5)
+- [x] 03-05-PLAN.md — G-03-3: comparison files' real values line up with the target's rows — beams matched across files by position ("Beam 1", "Beam 2", …), per-model width/height/length rows dropped from the cross-file comparison (both per the user's 2026-10-07 decisions); regression tests with differently named fixtures and unequal beam counts (wave 5)
 
 ### Phase 4: Standalone Packaging
 
@@ -175,6 +175,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 4/5 | In Progress|  |
+| 3. Compare Profiles & Export | 5/5 | In Progress|  |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
