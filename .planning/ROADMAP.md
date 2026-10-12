@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation Rebuild** - Spec-correct parsing, decoupled architecture, and a modernized GUI shell replace the old hand-rolled/crash-prone comparer (completed 2026-09-29)
 - [ ] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted
-- [ ] **Phase 3: Compare Profiles** - Users can save and reload reusable attribute selections ("compare profiles") for future comparisons
+- [x] **Phase 3: Compare Profiles** - Users can save and reload reusable attribute selections ("compare profiles") for future comparisons (completed 2026-10-11)
 - [ ] **Phase 4: Standalone Packaging** - Users can download and run signed/notarized standalone builds on macOS and Windows with no Python install
 - [ ] **Phase 5: MVR-xchange Networking** - Users can discover LAN peers and pull MVR fixture data into the compare workflow, fully optional
 
@@ -108,7 +108,7 @@ Plans:
 
   1. User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison.
 
-**Plans**: 5/5 plans executed (3 original + 2 gap closure)
+**Plans**: 5/5 plans complete (3 original + 2 gap closure)
 
 Plans:
 **Wave 1**
@@ -175,6 +175,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
-| 3. Compare Profiles & Export | 5/5 | In Progress|  |
+| 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |

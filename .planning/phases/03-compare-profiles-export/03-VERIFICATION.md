@@ -1,172 +1,113 @@
 ---
 phase: 03-compare-profiles-export
-verified: 2026-10-05T12:00:00Z
-status: human_needed
-score: 37/38 must-haves verified
-covered_files: [".planning/REQUIREMENTS.md", ".planning/phases/03-compare-profiles-export/03-01-PLAN.md", ".planning/phases/03-compare-profiles-export/03-01-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-02-PLAN.md", ".planning/phases/03-compare-profiles-export/03-02-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-03-PLAN.md", ".planning/phases/03-compare-profiles-export/03-03-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-04-PLAN.md", ".planning/phases/03-compare-profiles-export/03-04-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-REVIEW.md", ".planning/phases/03-compare-profiles-export/03-UAT.md", "src/gdtf_comparer/app.py", "src/gdtf_comparer/core/errors.py", "src/gdtf_comparer/core/profile_repository.py", "src/gdtf_comparer/gui/attribute_picker.py", "src/gdtf_comparer/gui/main_window.py", "tests/conftest.py", "tests/core/test_profile_repository.py", "tests/gui/test_compare_list_match_indicator.py", "tests/gui/test_profile_manage.py", "tests/gui/test_profile_portability.py", "tests/gui/test_profile_toolbar.py", "tests/test_architecture.py"]
-covered_digest: "v1:sha256:c70115522ba54f81ab03a78febca667839cc02c47acdec5c9f063e9eb2b6c380"
+verified: 2026-10-11T00:00:00Z
+status: passed
+score: 16/16 must-haves verified
+covered_files: [".planning/REQUIREMENTS.md", ".planning/ROADMAP.md", ".planning/phases/03-compare-profiles-export/03-01-PLAN.md", ".planning/phases/03-compare-profiles-export/03-01-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-02-PLAN.md", ".planning/phases/03-compare-profiles-export/03-02-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-03-PLAN.md", ".planning/phases/03-compare-profiles-export/03-03-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-04-PLAN.md", ".planning/phases/03-compare-profiles-export/03-04-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-05-PLAN.md", ".planning/phases/03-compare-profiles-export/03-05-SUMMARY.md", ".planning/phases/03-compare-profiles-export/03-REVIEW.md", ".planning/phases/03-compare-profiles-export/03-SECURITY.md", ".planning/phases/03-compare-profiles-export/03-UAT.md", ".planning/phases/03-compare-profiles-export/03-VALIDATION.md", "src/gdtf_comparer/core/comparator.py", "src/gdtf_comparer/core/errors.py", "src/gdtf_comparer/core/profile_repository.py", "src/gdtf_comparer/gui/attribute_picker.py", "src/gdtf_comparer/gui/main_window.py", "tests/core/test_comparator.py", "tests/core/test_profile_repository.py", "tests/gui/test_attribute_selection.py", "tests/gui/test_compare_list_match_indicator.py", "tests/gui/test_cross_fixture_rows.py", "tests/gui/test_differences_only_toggle.py", "tests/gui/test_namespaced_rows.py", "tests/gui/test_profile_manage.py", "tests/gui/test_profile_portability.py", "tests/gui/test_profile_toolbar.py", "tests/gui/test_unspecified_values.py"]
+covered_digest: "v3:sha256:834566bf4d4886730aae61ba8d64a740bb1a3f242b6b45d99c4f4319e97caeea"
 behavior_unverified: 0
 overrides_applied: 0
-behavior_unverified_items: []
 re_verification:
   previous_status: human_needed
-  previous_score: 29/30
+  previous_score: 44/45
   gaps_closed:
-    - "Real-app whole-phase walkthrough (restart persistence, D-03 reload, D-06 message, rename/delete) — actually performed by the user via 03-UAT.md; only the toolbar-clipping issue (G-03-1) was reported, everything else implicitly passed"
-    - "Crash/power-loss resilience of profiles.json writes — 03-UAT.md test 2 explicitly judged 'pass'"
-    - "G-03-1: profile toolbar clipping ('No si▾' / 'AVE.' / 'M...e') — fixed by splitting into two stacked rows (profile_combo_row / profile_actions_row), verified by a new measured no-clip test passing in both qt-material themes at both the 260px default and the new 240px drag floor"
-    - "G-03-2 (new scope approved during UAT): per-file match/no-match indicator dot on the 'Compare with' list — implemented, reusing ComparisonRow.differs with zero new comparison logic, 12 passing tests"
-    - "Code-review WR-01 (stale indicator on re-run/failed re-run) — fixed in commit 564217d; confirmed present in code (main_window.py:559, :879) with 2 passing regression tests"
+    - "The sole outstanding item from the 2026-10-08 run (truth #16: real-app re-test on the user's own three actual GDTF files) is now closed. 03-UAT.md test 3 (2026-10-11, result: pass) confirms the live app, run against the user's real Astera AF250 LeoFresnel / Prolights EclPendantTU_60 / Robe OnePATT files, shows real beam values across all three fixtures on positional 'Beam 1'/'Beam 2' rows, the old per-model dimension rows are gone from Physical Properties, and both Compare-with dots are red -- exactly matching the expected result carried forward from the prior VERIFICATION.md and from 03-05-PLAN.md Task 2's human-check."
   gaps_remaining: []
   regressions: []
-human_verification:
-  - test: "Real-app confirmation of the G-03-1 layout fix and G-03-2 match-indicator feature together (03-04-PLAN.md Task 2's own <human-check>, explicitly carried forward to /gsd-verify-work and not yet re-run against the fixed code per 03-UAT.md's git history — 03-UAT.md has not been updated since the gap-closure plan landed)."
-    expected: "Per 03-04-PLAN.md's <expected>: (1) with two comparison files added before running, both show a small gray dot; (2) after Run Comparison, dot colors update to green (close to target) / red (different), and hovering each shows the file's path plus a plain-language sentence explaining the color; (3) the dropdown, 'Save…' and 'Manage' are all fully readable at the panel's default width AND at the narrowest point the Attributes-panel divider can be dragged to, in real macOS rendering — nothing reads as 'AVE.' or 'M...e' or 'No si▾'; (4) unticking every checked attribute turns both dots gray again; (5) adding one more comparison file turns every dot (including the two pre-existing ones) gray again until the next Run Comparison."
-    why_human: "Every automated test in this phase (including the new clipping test and the match-indicator suite) runs on the offscreen Qt platform (QT_QPA_PLATFORM=offscreen). The offscreen tests prove the layout math and state-machine logic are correct, but real native widget chrome rendering (qt-material styling, font metrics, actual screen DPI) at a user-dragged panel width, and real dot-color rendering against that chrome, cannot be fully judged from a headless run. This is the exact gap 03-04-PLAN.md's own human-check names, not one introduced by this verification."
 ---
 
 # Phase 3: Compare Profiles Verification Report
 
 **Phase Goal:** Users can save and reload reusable attribute selections ("compare profiles") for future comparisons.
-**Verified:** 2026-10-05T12:00:00Z
-**Status:** human_needed
-**Re-verification:** Yes — after gap-closure plan 03-04 (G-03-1, G-03-2) and code-review fix WR-01
-**Mode:** mvp (ROADMAP Phase 3 `Mode: mvp`)
-
-## User Story / Goal
-
-As a lighting/AV professional checking whether a substitute fixture measures up, I want to save the attributes I care about as a named spec sheet and reload it against any fixture files, so that I can see at a glance whether a candidate has what I need, without re-ticking attributes or emailing back and forth with a vendor.
-
-(Present verbatim in 03-01-PLAN.md's "Phase Goal" section, assembled from 03-CONTEXT.md D-01 and the user's own quoted scenario — the ROADMAP Goal line itself is not in user-story form.)
+**Verified:** 2026-10-11T00:00:00Z
+**Status:** passed
+**Re-verification:** Yes — after human verification of the real-file re-test (03-UAT.md test 3)
 
 ## What changed since the previous verification
 
-The previous 03-VERIFICATION.md (2026-10-04T23:40:00Z) covered only Plans 03-01/02/03 and routed two items to human verification: (1) a real-app, real-restart walkthrough, and (2) the crash/power-loss backstop truth. The user then actually performed that walkthrough as UAT (`03-UAT.md`): the crash-resilience judgment call passed outright, and the full restart/reload/rename/delete flow passed except for one reported defect (G-03-1, toolbar clipping) plus one piece of new scope requested on the spot (G-03-2, a match/no-match indicator dot). Plan 03-04 closed both gaps, and a subsequent code review (`03-REVIEW.md`) found and the executor fixed one additional bug in the new G-03-2 feature (WR-01: stale indicator on re-run/failure). This report re-verifies the whole phase, including 03-04 and the WR-01 fix, from scratch.
+The 2026-10-08 `03-VERIFICATION.md` scored 44/45 must-haves and reached `status: human_needed` for exactly one reason: truth #16 (re-running the user's own real GDTF files through the live app to confirm gap G-03-3's positional beam-matching fix) could not be certified from the codebase alone. That human verification has since been performed and recorded as `03-UAT.md` test 3 (2026-10-11, result: pass): real values now appear across all three of the user's actual fixture files, the old per-model dimension rows are gone, and both Compare-with dots are red — exactly as the prior verification's expected outcome specified. No source files have changed since the 2026-10-08 code read (`git log` shows no commits touching `src/` or `tests/` after `03-05`'s `cdda8c2`); this run independently re-confirmed the unchanged artifacts, re-ran the full test suite, and re-read the freshly re-audited `03-SECURITY.md` (threats_open: 0) and `03-VALIDATION.md` (nyquist_compliant: true, 276/276 tests) dated 2026-10-11.
 
-## User Flow Coverage
+## Goal Achievement
 
-| # | Step | Expected | Evidence in codebase | Status |
-|---|------|----------|----------------------|--------|
-| 1 | User ticks the attributes they care about | Picker records the checked (category, attribute) set | `AttributePicker.checked_attributes()` (Phase 2, unchanged) | VERIFIED |
-| 2 | User clicks "Save…", types a name | Exactly the checked set is written to one atomic `profiles.json`; Cancel writes nothing | `MainWindow._save_profile`; `test_cancelled_save_writes_nothing` | VERIFIED |
-| 3 | App is closed and reopened (real restart) | Saved profile is listed in the dropdown | `ProfileRepository.load_all()` reads the real per-user `profiles.json`; **actually exercised by the user in 03-UAT.md** (quit via Cmd+Q, reopened, loaded the profile) — only the toolbar-clipping defect was reported, implying this step passed | VERIFIED (human-confirmed via UAT) |
-| 4 | User picks the profile from the dropdown | Checked set is replaced exactly (D-03); not widened by defaults | `AttributePicker.set_checked()`; `activated`-only wiring; `test_load_profile_replaces_checked_set`, `test_profile_loaded_before_comparison_is_not_widened_by_defaults` | VERIFIED |
-| 5 | User runs the comparison | Only the profile's attributes show; missing items named (D-06) | `MainWindow._profile_items_not_found_message()`; `tests/gui/test_profile_portability.py` (13 tests) | VERIFIED |
-| 6 | User renames or deletes a profile via "Manage" | Rename keeps attributes, refuses collisions; Delete asks first | `ProfileRepository.rename`/`.delete`; `tests/gui/test_profile_manage.py` (15 tests, rescoped for the two-row layout) | VERIFIED |
-| 7 | User widens/narrows the Attributes panel (G-03-1) | Profiles dropdown, "Save…" and "Manage" never clip at the 260px default or the 240px drag floor, in either theme | `test_profile_toolbar_widgets_never_clipped` (parametrized, light/dark); measures `widget.width() >= widget.sizeHint().width()` at both widths | VERIFIED (mechanism); real native rendering routed to human verification below |
-| 8 | User runs a comparison and looks at "Compare with" (G-03-2, new scope) | Each file shows a green/red/gray dot reflecting only the checked attributes' match status; resets to gray on any file-list/target/attribute change, and on any re-run or failed re-run (WR-01) | `_update_match_indicators`/`_reset_match_indicators`/`_mark_all_compare_items_unknown`; 12 tests in `tests/gui/test_compare_list_match_indicator.py` including the two WR-01 regression tests | VERIFIED (mechanism); real dot-color rendering routed to human verification below |
+### Observable Truths
 
-## Goal Achievement — Observable Truths
-
-Must-haves merged from ROADMAP Success Criterion 1 and the `must_haves` blocks of all four PLAN frontmatters (03-01 through 03-04), plus the WR-01 code-review fix explicitly named in this verification's task brief. 29 truths/prohibitions carried forward from the prior 03-01/02/03 verification (re-checked, not re-derived — see "Regression check" below) plus 8 new truths/prohibitions from 03-04, plus 1 explicit WR-01 fix-presence check.
-
-### Carried forward from 03-01/02/03 (regression-checked)
-
-All 29 previously-VERIFIED truths and prohibitions (toolbar/dropdown existence, atomic save, overwrite confirm, name validation, damaged-file handling, path-safety, idempotency, D-06 not-found reporting, rename/delete semantics and safety) were re-checked for regression:
-
-| Check | Result |
-|---|---|
-| `src/gdtf_comparer/core/profile_repository.py` (535 lines), `core/errors.py` — classes/functions unchanged in shape | ✓ VERIFIED — `class Profile`, `normalize_profile_name`, `profile_name_key`, `app_data_dir`, `class ProfileRepository`, `missing_attributes`; `ProfileError`/`ProfileNameError`/`ProfileNotFoundError`/`ProfileStorageError` all present |
-| `tests/core/test_profile_repository.py`, `tests/gui/test_profile_portability.py` | ✓ VERIFIED — all pass in the full-suite run (see Behavioral Spot-Checks) |
-| `tests/gui/test_profile_toolbar.py`, `tests/gui/test_profile_manage.py` (rescoped for the two-row layout by 03-04) | ✓ VERIFIED — rescoped assertions (`profile_combo_row.indexOf`, `profile_actions_row.indexOf`) pass; all other assertions (text, menu, popupMode, rename-action membership) unchanged and pass |
-| `git diff --quiet HEAD -- src/gdtf_comparer/core/comparator.py src/gdtf_comparer/core/models.py src/gdtf_comparer/gui/table_model.py` since Phase 3 began | ✓ VERIFIED — exits 0; no plan in this phase touched comparison/model/table logic |
-| Real-restart (truth #3) and crash-resilience (truth #15) — previously routed to human verification | ✓ VERIFIED (human-confirmed) — 03-UAT.md test 2 ("pass") and the implicit pass of every step but the toolbar in test 1 |
-
-**Score for carried-forward items: 29/29** (the 2 items previously open — real restart and crash resilience — are now resolved by the UAT human judgment, not merely re-asserted).
-
-### New truths from 03-04 (gap closure: G-03-1, G-03-2)
-
-| # | Truth (abbreviated) | Status | Evidence |
+| # | Truth | Status | Evidence |
 |---|---|---|---|
-| 1 | Dropdown/Save…/Manage each render ≥ their own sizeHint width at the 260px default AND the 240px drag floor, in both themes (closes G-03-1) | ✓ VERIFIED | `profile_row = QVBoxLayout()` holding `profile_combo_row`/`profile_actions_row` (main_window.py:350-379); `test_profile_toolbar_widgets_never_clipped` passes both widths × both themes (2/2) |
-| 2 | Dropdown/Save…/Manage stay in one consolidated block above the picker, now two stacked rows, no label abbreviated/relocated | ✓ VERIFIED | `SAVE_PROFILE_LABEL`/`MANAGE_PROFILES_LABEL` constants unchanged; both rows nested inside the same `profile_row` added once via `attributes_layout.addLayout(self.profile_row)`; `test_profile_toolbar_sits_above_picker_in_attributes_panel`, `test_manage_button_sits_in_profile_row` pass |
-| 3 | Colored dot per "Compare with" file after Run Comparison: green if no checked attribute differs, red if ≥1 does (closes G-03-2) | ✓ VERIFIED | `_update_match_indicators` reads `row.differs[row_index]` directly (main_window.py:728-730); `test_match_and_differs_states_after_run` passes |
-| 4 | Dot resets to neutral gray before any run, and on target/file-list/attribute changes | ✓ VERIFIED | `_reset_match_indicators()` called from `set_target_file`, `add_compare_files`, `remove_selected_files` (3 call sites, confirmed by grep); `test_adding_a_file_resets_every_indicator_to_unknown`, `test_removing_a_file_resets_the_remaining_indicator_to_unknown`, `test_changing_target_resets_indicators_to_unknown` pass |
-| 5 | File with no checked-attribute rows shows neutral gray, never a false green | ✓ VERIFIED | `evaluated` empty → `MATCH_STATE_UNKNOWN` (main_window.py:726); `test_unchecking_the_only_relevant_attribute_falls_back_to_unknown` passes |
-| 6 | Tooltip names the state in plain words; computing/display never mutates compare_files/checked set/result | ✓ VERIFIED | `_set_compare_item_match_state` appends `MATCH_STATE_TOOLTIPS[state]`; `test_tooltip_names_the_state`, `test_indicator_never_changes_comparison_or_selection` pass |
+| 1 | ROADMAP SC1 / ATTR-03: User can save a named subset of selected attributes as a "compare profile" and reload it for a future comparison | ✓ VERIFIED | `ProfileRepository`/`Profile` (`src/gdtf_comparer/core/profile_repository.py`, 535 lines — `class Profile`, `class ProfileRepository`, `normalize_profile_name`, `profile_name_key`, `app_data_dir`, `missing_attributes`, all read directly); Profiles dropdown/Save…/Manage toolbar wired in `main_window.py` (`profile_combo_row`, `profile_actions_row`, lines 352-381); full suite independently re-run: 276 passed |
+| 2 | Saving stores exactly the checked (category, attribute) set atomically; Cancel writes nothing | ✓ VERIFIED | `tests/core/test_profile_repository.py` passes as part of the 276-test run; file unchanged since 2026-10-08 (no commits since) |
+| 3 | After restart, the saved profile is listed and loading it replaces the checked set exactly (D-03), not widened by first-use defaults | ✓ VERIFIED (human-confirmed, 03-UAT.md round 1) | `AttributePicker.set_checked()`; real restart performed by the user in UAT |
+| 4 | Overwrite confirmation (D-04), name validation, damaged-file safety, path-safety, idempotency, Unicode-normalisation | ✓ VERIFIED | `tests/core/test_profile_repository.py`, `tests/gui/test_profile_toolbar.py`; 27 threats in `03-SECURITY.md` dispositioned, all mitigate-tier threats carry a named passing regression test |
+| 5 | A loaded profile's spec items missing from the current files are named in the status bar (D-06), never silently dropped | ✓ VERIFIED | `PROFILE_ITEMS_NOT_FOUND_TEMPLATE` (main_window.py:116) and `_profile_items_not_found_message` (main_window.py:733) read directly; `tests/gui/test_profile_portability.py` passes |
+| 6 | Manage menu: Rename… (conflict-safe, D-05) and Delete… (confirm first, default No), never touching the checked set or re-running the comparison | ✓ VERIFIED | `ProfileRepository.rename`/`.delete`; `tests/gui/test_profile_manage.py` passes |
+| 7 | G-03-1: Profiles dropdown, Save…, Manage never clip at the panel's default or drag-floor width, in both themes | ✓ VERIFIED (human-confirmed, 03-UAT.md test 1) | Two-row `profile_combo_row`/`profile_actions_row` layout (main_window.py:352-381); re-tested and passed 2026-10-07 against the current code |
+| 8 | G-03-2: Each "Compare with" file shows a green/red/gray match dot reflecting only the checked attributes, reset on any target/file-list/attribute change or re-run | ✓ VERIFIED | `COMPARE_MATCH_STATE_ROLE`, `_update_match_indicators`, `_reset_match_indicators` (main_window.py:136, 660, 678-687) read directly; `tests/gui/test_compare_list_match_indicator.py` passes |
+| 9 | G-03-3: comparing a target against fixtures whose geometry/model names differ shows each file's own real BeamAngle/FieldAngle/PowerConsumption/LuminousFlux/ColorTemperature/BeamType values on the SAME "Beam 1"/"Beam 2" row as the target — never N/A merely because manufacturers named their geometry differently | ✓ VERIFIED | `_cross_file_attributes()` + `beam_position_label()` in `src/gdtf_comparer/core/comparator.py:56-101` read in full; `compare()` (lines 104-162) builds rows from these views instead of raw `model.attributes`; `tests/core/test_comparator.py::test_beams_match_by_position_across_different_geometry_names` in the passing 276-test run |
+| 10 | Beams matched by POSITION (1st-to-1st, 2nd-to-2nd), never by name/fuzzy/beam-type; a file with fewer beams gets a true N/A at the missing position | ✓ VERIFIED | `beam_positions` dict keyed by first-seen `element_path` (comparator.py:79-96); boundary tests (`test_one_beam_vs_two_beams`, `test_zero_beams_vs_one_beam`, etc.) in the passing suite |
+| 11 | Per-model Width/Height/Length rows dropped from the cross-file comparison table and picker entirely, while extraction keeps storing them unchanged | ✓ VERIFIED | `_MODEL_DIMENSION_ATTRIBUTES` filter (comparator.py:40, 82-87) reads names from `core.extract.MODEL_ATTRIBUTES`; `test_model_dimension_rows_are_not_compared` passing |
+| 12 | Two beams inside ONE file still produce two distinct rows (Phase 01 D-11 preserved); extraction/models keying unchanged — only cross-file row identity changes | ✓ VERIFIED | `src/gdtf_comparer/core/extract.py` / `models.py` unmodified (no commits since `d1c9fe3`, confirmed by `git log`) |
+| 13 | `compare()` never mutates a `FixtureModel`'s attributes or replaces the models on `ComparisonResult` while building cross-file views | ✓ VERIFIED | `_cross_file_attributes` builds a fresh dict (comparator.py:78, "A new dict... model.attributes is never mutated"); `test_compare_leaves_models_untouched` passing |
+| 14 | A same-values/different-names comparison file now gets a green match dot; a genuinely different one gets red (G-03-2 meaningful again) | ✓ VERIFIED | `test_match_dot_meaningful_for_differently_named_fixtures` passing |
+| 15 | A saved profile still listing a now-dropped dimension item is reported via the existing D-06 "weren't found" message, never silently dropped | ✓ VERIFIED | `test_profile_listing_a_dimension_item_reports_it_not_found` passing |
+| 16 | Real-app re-test on the user's own three actual GDTF files (Astera AF250 LeoFresnel target vs. Prolights EclPendantTU_60 and Robe OnePATT), confirming the fix on the exact symptom originally reported | ✓ VERIFIED (human-confirmed, 03-UAT.md test 3, 2026-10-11) | `03-UAT.md` test 3 result: pass — "beam rows now populate real values across all three fixtures, dimension rows are gone, both Compare-with dots are red." This closes the sole item the prior verification left at `human_needed`. |
 
-### Prohibitions from 03-04
+**Score:** 16/16 truths verified (0 present, behavior-unverified; 0 failed)
 
-| # | Prohibition | Status | Evidence |
-|---|---|---|---|
-| 1 | MUST NOT abbreviate/remove profile toolbar labels or relocate Save…/Manage outside the consolidated block | ✓ RESOLVED | `SAVE_PROFILE_LABEL`, `MANAGE_PROFILES_LABEL` unchanged; both buttons still direct children of the same `profile_row` stack |
-| 2 | MUST NOT add new comparison/tolerance logic beyond the existing differs signal; MUST NOT mutate compare_files/checked_attributes/ComparisonResult | ✓ RESOLVED | `git diff --quiet HEAD -- src/gdtf_comparer/core` exits 0 for the whole plan (confirmed); `test_indicator_never_changes_comparison_or_selection` passes |
-
-### WR-01 code-review fix (explicitly required by this verification's task brief)
-
-| Check | Result |
-|---|---|
-| `self._reset_match_indicators()` called from `run_comparison`, right after `self.table_model.set_result(None)` | ✓ VERIFIED — `main_window.py:558-559` |
-| `self._reset_match_indicators()` called from `on_comparison_failed`, right after `self.table_model.set_result(None)` | ✓ VERIFIED — `main_window.py:878-879` |
-| Regression tests exist and pass by name | ✓ VERIFIED — `test_running_again_resets_stale_indicators_before_new_result`, `test_failed_comparison_resets_stale_indicators_to_unknown` both pass |
-| IN-01 and IN-02 (non-blocking Info findings) remain genuinely open, as 03-REVIEW.md claims (not silently fixed, not silently broken) | ✓ VERIFIED — `set_target_file`'s early `if not path: return` (main_window.py:478-479) still precedes the reset at line 497; `_reset_match_indicators` (line 678) is still a one-line wrapper around `_mark_all_compare_items_unknown` |
-
-**Score:** 37/38 — every automated-checkable truth, prohibition, and the WR-01 fix are VERIFIED; 1 item (real native-rendering confirmation of G-03-1/G-03-2, carried forward from 03-04-PLAN.md's own deferred human-check) is routed to human verification, not FAILED — the underlying mechanism is present, wired, and exercised by passing automated tests.
-
-## Required Artifacts
+### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 |---|---|---|---|
-| `src/gdtf_comparer/core/profile_repository.py` | Profile, ProfileRepository, normalize_profile_name, profile_name_key, app_data_dir, missing_attributes, rename, delete | ✓ VERIFIED | 535 lines; unchanged by 03-04 (core/ untouched) |
-| `src/gdtf_comparer/core/errors.py` | ProfileError, ProfileNameError, ProfileNotFoundError, ProfileStorageError | ✓ VERIFIED | Present, unchanged |
-| `src/gdtf_comparer/gui/main_window.py` | Two-row profile toolbar; match-indicator state machine | ✓ VERIFIED | 1187 lines; `profile_combo_row`/`profile_actions_row`, `ATTRIBUTES_PANEL_MIN_WIDTH_PX = 240`, `COMPARE_MATCH_STATE_ROLE`, `MATCH_STATE_*`, `_match_indicator_icon`, `_set_compare_item_match_state`, `_mark_all_compare_items_unknown`, `_reset_match_indicators`, `_update_match_indicators` all present and wired |
-| `tests/gui/test_compare_list_match_indicator.py` | 03-04 G-03-2 tests + WR-01 regressions | ✓ VERIFIED | 12 tests (10 original + 2 WR-01 regression), all pass |
-| `tests/gui/test_profile_toolbar.py` | 03-01 tests + G-03-1 no-clip test | ✓ VERIFIED | Rescoped + 1 new parametrized test, all pass |
-| `tests/gui/test_profile_manage.py` | 03-03 tests, rescoped | ✓ VERIFIED | Rescoped assertion passes; rest unchanged |
-| `tests/gui/test_profile_portability.py`, `tests/core/test_profile_repository.py` | 03-02/03-01 tests, unchanged | ✓ VERIFIED | All pass, no regressions |
+| `src/gdtf_comparer/core/comparator.py` | `BEAM_POSITION_LABEL_TEMPLATE`, `beam_position_label()`, `_cross_file_attributes()`, `compare()` built on cross-file views | ✓ VERIFIED | Read in full (220 lines); matches design exactly |
+| `src/gdtf_comparer/core/profile_repository.py` | `Profile`, `ProfileRepository` with save/load/rename/delete, atomic write, damaged-file safety | ✓ VERIFIED | Read function/class index (535 lines); `class Profile`, `class ProfileRepository`, `app_data_dir`, `missing_attributes` all present |
+| `src/gdtf_comparer/gui/main_window.py` | Profile toolbar (two-row layout) + match-indicator state machine + D-06 not-found message | ✓ VERIFIED | 1187 lines; `profile_combo_row`/`profile_actions_row`, `COMPARE_MATCH_STATE_ROLE`, `_update_match_indicators`, `_reset_match_indicators`, `PROFILE_ITEMS_NOT_FOUND_TEMPLATE`, `_profile_items_not_found_message` all present and grep-confirmed |
+| `tests/core/test_comparator.py`, `tests/gui/test_cross_fixture_rows.py` | G-03-3 positional/boundary/non-mutation regression coverage | ✓ VERIFIED | Present; collected and passing as part of the 276-test full-suite run |
+| `tests/core/test_profile_repository.py`, `tests/gui/test_profile_toolbar.py`, `test_profile_manage.py`, `test_profile_portability.py`, `test_compare_list_match_indicator.py` | Profile + toolbar + match-indicator regression coverage | ✓ VERIFIED | Present; passing |
 
-## Key Link Verification
+### Key Link Verification
 
 | From | To | Via | Status | Details |
 |---|---|---|---|---|
-| `main_window.py add_compare_files/remove_selected_files/set_target_file` | `_reset_match_indicators` | Any change to who/what is compared invalidates the dots | ✓ WIRED | Exactly 3 call sites confirmed by direct read (lines 497, 535, 545) |
-| `main_window.py run_comparison/on_comparison_failed` | `_reset_match_indicators` | WR-01 fix: a re-run or failed re-run never leaves a stale dot | ✓ WIRED | Confirmed at lines 559, 879, both directly after `table_model.set_result(None)` |
-| `main_window.py _apply_attribute_selection` | `_update_match_indicators` | Every selection change and post-run refresh recomputes the dots | ✓ WIRED | Exactly 1 call site, line 630 |
-| `_update_match_indicators` | `core/models.py ComparisonRow.differs` | Dot color read straight off the existing differs tuple | ✓ WIRED | `row.differs[row_index]` at line 728; zero new comparison logic (`git diff` against `core/` empty) |
-| `profile_row` (QVBoxLayout) | `profile_combo_row`, `profile_actions_row` | Two-row stack replaces the single clipped row | ✓ WIRED | Both sub-layouts added via `self.profile_row.addLayout(...)`; single `attributes_layout.addLayout(self.profile_row)` |
+| `comparator.py compare()` | `comparator.py _cross_file_attributes()` | Every row key/value read from each model's cross-file view | ✓ WIRED | `target_view = _cross_file_attributes(target)` / `comparison_views = [_cross_file_attributes(model) for model in comparisons]` (lines 124-125); row loop reads `target_view.get(key)` / `view.get(key)` (150-151) |
+| `comparator.py _cross_file_attributes()` | `extract.py MODEL_ATTRIBUTES` | Dimension-row drop reads names from extraction's own tuple | ✓ WIRED | `from gdtf_comparer.core.extract import MODEL_ATTRIBUTES` (line 26); `_MODEL_DIMENSION_ATTRIBUTES = frozenset(spec[0] for spec in MODEL_ATTRIBUTES)` (line 40) |
+| `main_window.py` toolbar buttons | `profile_repository.py` `ProfileRepository` methods | Save…/Manage(Rename…/Delete…) call repository save/rename/delete | ✓ WIRED | Confirmed by passing `tests/gui/test_profile_toolbar.py` and `test_profile_manage.py`, which exercise the GUI-to-repository path end to end |
+| `main_window.py _update_match_indicators` | `models.py ComparisonRow.differs` | Dots read `differs` off the now-correctly-aligned rows | ✓ WIRED | `row.differs[row_index]` read in `_update_match_indicators`; correctness proven by `test_match_dot_meaningful_for_differently_named_fixtures` |
 
-(All 03-01/02/03 key links from the prior verification — `ProfileRepository` read/write, `set_checked()` wiring, `activated`-only load, atomic `os.replace`, `tests/conftest.py` isolation, `APPROVED_CORE_SURFACE` — were re-checked and remain WIRED; unchanged by this phase's gap closure.)
-
-## Requirements Coverage
-
-| Requirement | Source Plan(s) | Description | Status | Evidence |
-|---|---|---|---|---|
-| ATTR-03 | 03-01, 03-02, 03-03, 03-04 | User can save/name a subset of selected attributes as a reusable "compare profile" and reload it for future comparisons | ✓ SATISFIED (automated); real-native-rendering confirmation of the G-03-1/G-03-2 fix pending human sign-off | ProfileRepository + Profiles dropdown/Save…/Manage UI + match-indicator feature; 96 profile/toolbar/indicator tests across 5 files, all passing |
-
-No orphaned requirements: REQUIREMENTS.md maps only ATTR-03 to Phase 3, and all four plans (including the gap-closure plan) declare it in frontmatter.
-
-## Anti-Patterns Found
-
-None. Scanned `core/errors.py`, `core/profile_repository.py`, `gui/attribute_picker.py`, `gui/main_window.py` for `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`, "not yet implemented", empty-return stubs, and hardcoded-empty-prop patterns. The only `PLACEHOLDER`-named matches (`PROFILE_PLACEHOLDER`, `NO_PROFILES_PLACEHOLDER`, `PROFILES_UNAVAILABLE_PLACEHOLDER`) are legitimate Qt UI-text constants, not stub code. `src/gdtf_comparer/core/` has zero diff for the entire phase's gap-closure work (confirmed via `git diff --quiet`).
-
-## Behavioral Spot-Checks
+### Behavioral Spot-Checks
 
 | Behavior | Command | Result | Status |
 |---|---|---|---|
-| Full suite (Phase 1-3 regression, run once) | `"$PY" -m pytest -q -W error::DeprecationWarning` | `258 passed in 13.21s` | ✓ PASS |
-| G-03-1 no-clip test, both themes/widths | `pytest tests/gui/test_profile_toolbar.py::test_profile_toolbar_widgets_never_clipped -v` | `2 passed` (light_blue.xml, dark_blue.xml) | ✓ PASS |
-| G-03-2 + WR-01 match-indicator suite | `pytest tests/gui/test_compare_list_match_indicator.py tests/gui/test_profile_toolbar.py tests/gui/test_profile_manage.py -q` | `44 passed` | ✓ PASS (one earlier run hit a native-teardown crash with no Python traceback and no assertion failure, consistent with the flake 03-04-SUMMARY.md documented; an immediate re-run passed cleanly with no recurrence) |
-| WR-01 fix present in code | Direct read of `main_window.py:547-579` (`run_comparison`) and `:872-881` (`on_comparison_failed`) | `self._reset_match_indicators()` present at both sites, immediately after `set_result(None)` | ✓ PASS |
+| Full suite (Phase 1-3 regression, run once, independently by this verifier) | `.venv/bin/python -m pytest -q -W error::DeprecationWarning` | `276 passed in 14.24s` | ✓ PASS |
 
-The full suite was run exactly once for the regression count; the two targeted sub-runs above are by-name, not re-filters of the full run.
+### Probe Execution
+
+Not applicable — this phase has no `scripts/*/tests/probe-*.sh` convention and none is declared in any PLAN/SUMMARY for Phase 03. Skipped.
+
+### Requirements Coverage
+
+| Requirement | Source Plan(s) | Description | Status | Evidence |
+|---|---|---|---|---|
+| ATTR-03 | 03-01, 03-02, 03-03, 03-04, 03-05 | User can save/name a subset of selected attributes as a reusable "compare profile" and reload it for future comparisons | ✓ SATISFIED | `ProfileRepository` + toolbar/picker/profile UI + match-indicator feature + corrected cross-file row matching; 276/276 tests passing; `.planning/REQUIREMENTS.md` line 19 marked `[x]` and line 76 marked "Complete" |
+
+No orphaned requirements: `.planning/REQUIREMENTS.md` maps only ATTR-03 to Phase 3, and ATTR-03 is declared in every plan (03-01 through 03-05).
+
+### Anti-Patterns Found
+
+None. Scanned every source file in `covered_files` (`comparator.py`, `errors.py`, `profile_repository.py`, `attribute_picker.py`, `main_window.py`) for `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER`, "not yet implemented"/"coming soon", and empty-return stub patterns. The only matches are legitimate UI placeholder-text constants (`SEARCH_PLACEHOLDER`, `PROFILE_PLACEHOLDER`, `NO_PROFILES_PLACEHOLDER`, `PROFILES_UNAVAILABLE_PLACEHOLDER`, `setPlaceholderText(...)`), not debt markers or stubs.
+
+Code review (`03-REVIEW.md`, 2026-10-08) independently confirms 0 critical / 0 warning findings across 11 files (2 open Info-level items, both non-blocking and pre-existing from the 03-04 pass). No source files have changed since that review (`git log` shows the last `src/`/`tests/` commit as `cdda8c2`, part of 03-05).
+
+Security (`03-SECURITY.md`, re-audited 2026-10-11): 27 threats dispositioned, `threats_open: 0`, all 21 `mitigate`-tier threats carry a named passing regression test.
+
+Validation (`03-VALIDATION.md`, re-audited 2026-10-11): `nyquist_compliant: true`, all 11 tasks across 5 plans have automated coverage, full suite 276/276 passing.
 
 ## Human Verification Required
 
-### 1. Real-app confirmation of the G-03-1 layout fix and G-03-2 match-indicator feature
-
-**Test:** Carried forward verbatim from 03-04-PLAN.md's own Task 2 `<human-check>` (explicitly deferred to `/gsd-verify-work`, and not yet re-exercised — `03-UAT.md`'s git history shows no commit after the gap-closure plan landed). Pick a target GDTF file, add two comparison files (one expected close to the target, one expected different). Look at "Compare with" before clicking anything. Click Run Comparison, look again, hover each file. In the Attributes panel, look at the dropdown/Save…/Manage row; drag the panel divider as far left as it goes, then back. Untick every checked attribute and look at "Compare with" again. Add one more comparison file and look again.
-
-**Expected:** Gray dots before any run; green/red dots with explanatory tooltips after Run Comparison; the dropdown, "Save…" and "Manage" fully readable at every width down to the drag floor — none of "AVE.", "M...e", "No si▾"; all dots turn gray again when nothing is checked, and again when a new file is added.
-
-**Why human:** Every automated test (including the new clipping test and the match-indicator suite, all passing) runs on the offscreen Qt platform. This proves the layout math and the state machine are correct, but cannot prove how qt-material's real chrome, real font metrics, and real screen DPI render the fix on an actual display — exactly the gap 03-04-PLAN.md's own human-check names.
+None. The single outstanding item from the prior verification (truth #16 above) was completed and recorded as a pass in `03-UAT.md` test 3 (2026-10-11).
 
 ## Gaps Summary
 
-No gaps_found-level blockers. Every artifact exists and is substantive; every key link (including the two new WR-01 call sites) is wired and confirmed by direct code reading; the full regression suite (258 tests, up from 244 before this gap-closure round) passes cleanly in one run; no debt markers or stub patterns were found; `src/gdtf_comparer/core/` has zero diff across the entire phase's gap-closure work, satisfying both of 03-04's prohibitions; REQUIREMENTS.md's only Phase-3 requirement (ATTR-03) is claimed and substantively supported by all four plans; the two human-verification items left open by the prior round (real restart, crash resilience) are now resolved by the user's own UAT session.
-
-The phase is **not** cleared to `passed` because one item genuinely cannot be certified from the codebase alone: real native-OS rendering confirmation of the G-03-1 fix and the G-03-2 feature, which 03-04-PLAN.md itself explicitly deferred to this verification step and which has not yet been performed (no UAT update since the fix landed). The underlying mechanism for both — layout math and match-state logic — is present, wired, and exercised by 56 new/rescoped passing automated tests across the two gap-closure tasks; the gap is in confirming the *real* rendering, not the implementation.
+No gaps. All 16 must-haves verified: the profile save/load/rename/delete/toolbar/match-indicator feature set (ATTR-03) is implemented, wired, and covered by 276 passing automated tests; the G-03-3 cross-file beam-matching fix was independently re-confirmed by direct code read and by the user's own real GDTF files in the live app (03-UAT.md test 3, pass); security and validation audits both closed clean on 2026-10-11 with zero open items; code review has zero critical/warning findings; no debt markers or stub patterns found in any touched file; no orphaned requirements. The phase goal — "Users can save and reload reusable attribute selections ('compare profiles') for future comparisons" — is achieved and observably true in the codebase.
 
 ---
 
-*Verified: 2026-10-05T12:00:00Z*
+*Verified: 2026-10-11T00:00:00Z*
 *Verifier: Claude (gsd-verifier)*
