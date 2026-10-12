@@ -19,21 +19,20 @@ You can pick a target GDTF file and any number of comparison files and immediate
 ### Validated
 
 - ✓ Select one target `.gdtf` file and multiple comparison `.gdtf` files via file dialogs — existing
-- ✓ Parse `description.xml` out of a GDTF (zip) archive using `zipfile` + `xml.etree.ElementTree` — existing
-- ✓ Display a side-by-side attribute comparison table (Tkinter `ttk.Treeview`) — existing
-- ✓ Basic pytest coverage for `parse_gdtf()` parsing/error paths — existing
+- ✓ Display a side-by-side attribute comparison table — existing, rebuilt on a Qt `QTableView` in Phase 1
+- ✓ App parses GDTF files using the `pygdtf` library (spec-correct, MIT-licensed), replacing the old hand-rolled flat-attribute extraction — Phase 1
+- ✓ Known crash bugs fixed: typed errors (`defusedxml` + size-limit pre-validation) and friendly plain-text dialogs replace the old silent crashes on bad/corrupt GDTF files or the missing-`messagebox`-import bug — Phase 1
+- ✓ App has a modernized UI (qt-material theme following OS light/dark) — Phase 1
+- ✓ User can choose/search which GDTF attributes to compare, across the full 60+ GDTF attribute set grouped by feature, instead of being limited to two hardcoded categories — Phase 2
+- ✓ Differing attribute values are visually highlighted in the comparison table (theme-aware tint, live re-tint on theme change, "Show differences only" toggle) — Phase 2
+- ✓ User can save/name a subset of selected attributes as a reusable "compare profile" and reload it for future comparisons, with rename/delete management and a match-indicator dot per comparison file — Phase 3 (emerged as ATTR-03 during Phase 2/3 discussion, not in the original Active list below)
 
 ### Active
 
 - [ ] User can run the app as a standalone package on macOS with no Python installed
 - [ ] User can run the app as a standalone package on Windows with no Python installed
-- [ ] App has a modernized UI (visual refresh, not just the stock Tkinter look)
-- [ ] User can choose/search which GDTF attributes to compare, instead of being limited to the two hardcoded categories (Beam, Physical Properties)
-- [ ] Differing attribute values are visually highlighted in the comparison table
 - [ ] User can export comparison results (e.g. CSV) for sharing or records
-- [ ] App parses GDTF files using the `pygdtf`/`pymvr` libraries (spec-correct, MIT-licensed) instead of the current hand-rolled flat-attribute extraction
 - [ ] App can participate in the MVR-xchange network protocol (reimplemented from the public spec, not ported from GPLv3 reference code) to exchange/sync fixture and scene data with other lighting/visualization software, as a later, additive phase after the core rebuild ships
-- [ ] Known crash bugs are fixed (missing `messagebox` import crashes error handling; no error handling around bad/corrupt GDTF files)
 
 ### Out of Scope
 
@@ -64,6 +63,9 @@ You can pick a target GDTF file and any number of comparison files and immediate
 | Package as standalone macOS + Windows builds (no Python required) | Tool needs to be shareable with other lighting/AV pros who won't have Python set up | — Pending |
 | Reimplement MVR-xchange wire protocol from the public spec, not from BlenderDMX's GPLv3 reference code | Keeps the project's license open; avoids the whole app inheriting GPLv3 | — Pending |
 | Sequence MVR-xchange networking as its own later phase, after the core rebuild (parsing, UI, diff highlighting, export, packaging) ships | It's the highest-risk/complexity component; core app should be solid and offline-usable first | — Pending |
+| Attribute profiles are a single atomic `profiles.json` file (not per-profile files), loading a profile *replaces* the current checked-attribute set rather than merging with it | Keeps one source of truth per user and matches the "load a saved subset" mental model (Phase 3 D-02/D-03/D-07) | ✓ Shipped — Phase 3 |
+| Cross-file comparison rows match beams by position (1st-to-1st, 2nd-to-2nd, …) across files, not by each file's own manufacturer-chosen element name; per-model physical-dimension rows are dropped from cross-file comparison entirely | Different fixtures almost never reuse the same internal geometry names, so exact-name matching showed N/A for every other file's real values — a major bug the user caught in UAT (G-03-3) | ✓ Shipped — Phase 3 (gap-closure plan 03-05) |
+| Added a green/red/gray match-indicator dot on each "Compare with" file (not in the original Phase 3 scope) | Approved as new scope during Phase 3 UAT once the user saw the toolbar layout fix and asked for an at-a-glance match signal (G-03-2) | ✓ Shipped — Phase 3 |
 
 ## Evolution
 
@@ -83,4 +85,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-25 after initialization*
+*Last updated: 2026-10-11 after Phase 3*
