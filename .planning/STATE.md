@@ -92,7 +92,7 @@ Recent decisions affecting current work:
 ### Blockers/Concerns
 
 - Phase 5 (MVR-xchange Networking): wire-protocol specifics (message framing, mDNS service-type string, port numbers) are only MEDIUM/LOW confidence per research — recommend `/gsd-plan-phase --research-phase 5` to re-verify against `mvrdevelopment/spec` before implementation.
-- Phase 4 (Standalone Packaging): Apple Developer account / code-signing budget and notarization time cost not yet confirmed — needs a go/no-go call before or during Phase 4 planning.
+- Phase 4 (Standalone Packaging): RESOLVED 2026-10-14 — user decided to ship both macOS and Windows builds unsigned (no Apple Developer account, no code-signing cert) with bypass instructions, per 04-CONTEXT.md D-01.
 
 ### Quick Tasks Completed
 
