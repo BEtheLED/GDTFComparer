@@ -1,10 +1,10 @@
 ---
 phase: 02-attribute-browsing-diff-highlighting
 verified: 2026-10-11T00:00:00Z
-status: human_needed
+status: passed
 score: 3/3 must-haves verified
 covered_files: [".planning/REQUIREMENTS.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-01-PLAN.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-01-SUMMARY.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-02-PLAN.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-02-SUMMARY.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-03-PLAN.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-03-SUMMARY.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-REVIEW-DISPOSITION.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-REVIEW.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-SECURITY.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-UI-REVIEW.md", ".planning/phases/02-attribute-browsing-diff-highlighting/02-VALIDATION.md", "src/gdtf_comparer/core/comparator.py", "src/gdtf_comparer/core/extract.py", "src/gdtf_comparer/core/models.py", "src/gdtf_comparer/gui/attribute_picker.py", "src/gdtf_comparer/gui/main_window.py", "src/gdtf_comparer/gui/table_model.py", "src/gdtf_comparer/gui/theme.py", "tests/conftest.py", "tests/core/test_comparator.py", "tests/core/test_extract.py", "tests/gui/test_attribute_picker.py", "tests/gui/test_attribute_selection.py", "tests/gui/test_diff_highlighting.py", "tests/gui/test_differences_only_toggle.py", "tests/gui/test_dmx_attributes.py"]
-covered_digest: "v3:sha256:bd2f51023cbac155ffca206127cd9041a5b26604da2a0faf02d1a61259891042"
+covered_digest: "v3:sha256:4bdc670195a730be58cea6cb1c665288fb910e97cd2b3b08991f4bd8c927dbbe"
 behavior_unverified: 0
 overrides_applied: 0
 re_verification:
@@ -17,19 +17,22 @@ human_verification:
   - test: "Plan 02-01 Task 2 human-check: open the app, run a comparison, use the Attributes panel (untick/re-tick BeamAngle, type \"angle\" in search, clear it), and confirm the panel cannot be dragged shut."
     expected: "Attributes panel always visible, Beam + Physical Properties open and fully ticked by default; unticking/ticking BeamAngle removes/restores its rows; search narrows the panel list without changing the table; table has no horizontal scrollbar with 1-2 comparison files."
     why_human: "Real macOS qt-material rendering of the tree's checkboxes and panel-width feel cannot be judged on the offscreen test platform (deferred per workflow.human_verify_mode=end-of-phase; recorded in 02-01-SUMMARY.md coverage entry D3)."
+    resolution: "Passed in 02-UAT.md test 1 (2026-10-12)."
   - test: "Plan 02-02 Task 2 human-check: open the app with two real third-party moving-light .gdtf files, expand a 'DMX: ...' section, tick Pan, and search \"gobo\"."
     expected: "Several naturally-named 'DMX: ...' sections below Beam/Physical Properties, closed and unticked, totalling 60+ attributes on a real fixture; ticking Pan adds its six rows; search narrows the panel without changing the table."
     why_human: "Only a real third-party GDTF file can confirm the actual 60+ attribute count (the offscreen suite only proves the mechanism with a synthetic 66-definition fixture), and only a person can judge whether DMX section names read naturally (deferred per workflow.human_verify_mode=end-of-phase; recorded in 02-02-SUMMARY.md coverage entry D5)."
+    resolution: "DESCOPED 2026-10-14 by user decision - no real third-party .gdtf fixture file available for testing in this environment; recorded as a non-blocking deferred follow-up in 02-UAT.md test 2. ATTR-01's 60+ mechanism stays proven by the automated synthetic 66-definition suite."
   - test: "Plan 02-03 Task 3 human-check: run a comparison, observe cell tinting, toggle 'Show differences only', then switch the OS between Light and Dark while the app is open."
     expected: "Differing comparison cells are tinted and easy to read/distinguish from the alternating-row stripe in both themes; the toggle hides/restores rows and explains an empty result; switching OS appearance re-tints the table live with no re-run."
     why_human: "Real macOS rendering and color readability/distinguishability judgment cannot be performed on the offscreen test platform; this is a backstop-tier truth in 02-03-PLAN.md's must_haves (deferred per workflow.human_verify_mode=end-of-phase; recorded in 02-03-SUMMARY.md coverage entry D4)."
+    resolution: "Passed in 02-UAT.md test 3 (2026-10-12)."
 ---
 
 # Phase 2: Attribute Browsing & Diff Highlighting Verification Report
 
 **Phase Goal:** Users can browse and filter the complete set of GDTF attributes and see which values differ, instead of being limited to two hardcoded categories.
 **Verified:** 2026-10-11
-**Status:** human_needed
+**Status:** passed, canonicalized 2026-10-14 after UAT — see the Post-UAT Update (2026-10-14) section below.
 **Re-verification:** Yes — regenerated because Phase 3 touched shared files (`main_window.py`, `comparator.py`) after the 2026-09-30 report was written, staling its digest. Same conclusion reached independently from fresh evidence; no regressions found.
 
 ## Goal Achievement
@@ -148,6 +151,11 @@ Three UAT checkpoints were deliberately deferred from mid-plan `checkpoint:human
 
 These three items must be exercised via `/gsd-verify-work 02` after this report, per the task's explicit carry-forward instruction.
 
+**UAT outcome (2026-10-14):**
+1. Item 1 — pass.
+2. Item 2 — descoped: no real third-party .gdtf fixture file available for testing in this environment.
+3. Item 3 — pass.
+
 ### Gaps Summary
 
 No gaps found against this phase's own must-haves. All three ROADMAP success criteria and all three owned requirements (ATTR-01, ATTR-02, DIFF-01) are backed by genuine end-to-end wiring — traced from XML extraction through core comparison through the Qt proxy chain through to actual on-screen pixel rendering (not just data-model assertions) for the highlight requirement. This conclusion was independently re-derived against the current codebase (post-Phase-3) rather than carried over from the stale 2026-09-30 report, and no regression was found in the shared files Phase 3 touched.
@@ -155,6 +163,22 @@ No gaps found against this phase's own must-haves. All three ROADMAP success cri
 The phase is not `passed` for two independent reasons, neither of which is a defect in this phase's own deliverable:
 1. The three legitimately-deferred human UAT checks (a process/platform limitation, not an implementation gap) — these route the status to `human_needed`.
 2. A separate, standalone code review (`02-REVIEW.md`) found one critical-severity defect (CR-01, stale in-flight comparison results) and two warnings (WR-01 NaN equality, WR-02 duplicate headers) in `MainWindow`/`core.models` that remain `open` for disposition. These are real quality gaps worth tracking as a fast-follow, but — per explicit scoping for this verification — do not falsify ATTR-01, ATTR-02, or DIFF-01, so they are reported here for visibility rather than structured as blocking `gaps`.
+
+**2026-10-14 update:** Reason 1 is now closed — 2 of the 3 human checks passed (02-UAT.md tests 1 and 3) and the third was formally descoped by user decision (no real third-party .gdtf fixture file available for testing in this environment), recorded as a non-blocking deferred follow-up in 02-UAT.md test 2. Reason 2 is unchanged: the 02-REVIEW.md findings (CR-01/WR-01/WR-02/IN-01) are still open in 02-REVIEW-DISPOSITION.md, and that paragraph already scoped them as not changing status. With reason 1 closed and reason 2 never gating, this report's status is now **passed**.
+
+### Post-UAT Update (2026-10-14)
+
+**Why status flipped to `passed`:** This project's #4663 rule canonicalizes a report's `status` to `passed` once its UAT gate passes. The `phase uat-passed "02" --uat-only` predicate reported `passed: true` with 2 of 3 checks passing and 1 deferred/descoped, and 0 issues — satisfying that rule, so `status` was set to `passed` via `frontmatter.set`.
+
+**How the descope is encoded:** GSD has no distinct `descoped` or `not_applicable` UAT result — a bare `result: skipped` with an ordinary reason, or a `result: not_applicable`/`result: descoped`, all still produce a blocking entry in the predicate. The only non-blocking skip the predicate recognises is the documented #4546 `Deferred follow-up` contract (`DEFERRED_REASON_RE` in `uat-predicate.cjs`), the same path `/gsd-verify-work` uses for "out of scope" responses. 02-UAT.md test 2 therefore uses `result: skipped` with a `reason:` that starts `Deferred follow-up:` and states explicitly that this is a descope (not a routine deferral), with the canonical reason: no real third-party .gdtf fixture file available for testing in this environment. The predicate reports this row as `deferred: true`, not as a pass.
+
+**Why `covered_digest` was recomputed:** Since this report was last written (commit `facaab5`), the only changes to files in `covered_files` have been documentation: the 02-SECURITY.md audit table appended by `/gsd-secure-phase` on 2026-10-14, plus (per the follow-up Task 2 in this descope plan) the 02-02-PLAN.md/02-02-SUMMARY.md descope annotations. `git diff --quiet facaab5 -- src tests` confirmed clean — no implementation or test change since the report. The digest below was recomputed by the `verification.fingerprint` CLI over the report's own declared `covered_files`, never typed by hand.
+
+**Fresh (R6) pass counts (2026-10-14, this session):**
+- Phase 02 named test subset + `tests/test_architecture.py`: `106 passed` (matches the 2026-10-11 report's count).
+- Full suite: `276 passed` (matches the 2026-10-11 report's count).
+
+**Residual risk:** 02-RESEARCH.md Assumption A1 (real-world fixtures declare 60+ attribute definitions) is still not measured on a real third-party file. ATTR-01's 60+ evidence remains the synthetic 66-definition fixture plus domain reasoning — this descope does not add new evidence, it formally closes out the one check that could have supplied it, because no such file is available in this environment.
 
 ---
 
