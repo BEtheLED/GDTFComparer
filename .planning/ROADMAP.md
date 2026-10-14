@@ -149,12 +149,12 @@ Plans:
   2. A Windows user can download and run the packaged app with no separate Python install.
   3. The macOS build launches without a Gatekeeper "damaged app" block, and the Windows build launches without being flagged/blocked by SmartScreen on first run.
 
-**Plans**: 4 plans
+**Plans**: 1/4 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Tracer: blocking-human legitimacy gate for pyinstaller==6.22.3, then one shared packaging/app.spec builds a standalone macOS GDTF Comparer.app on this Mac, and packaging/smoke_check.py proves it launches, themes itself and stays up with no Python environment (valid ad-hoc signature, qt-material bundled by its own hook); negative-path tests prove the check isn't vacuous (PKG-01, PKG-02) (wave 1)
+- [x] 04-01-PLAN.md — Tracer: blocking-human legitimacy gate for pyinstaller==6.22.3, then one shared packaging/app.spec builds a standalone macOS GDTF Comparer.app on this Mac, and packaging/smoke_check.py proves it launches, themes itself and stays up with no Python environment (valid ad-hoc signature, qt-material bundled by its own hook); negative-path tests prove the check isn't vacuous (PKG-01, PKG-02) (wave 1)
 - [ ] 04-03-PLAN.md — First-launch instructions: README "Download and run (no Python needed)" plus packaging/release-notes.md (the release description) with the current macOS Privacy & Security → Open Anyway flow, the "is damaged" fallback, Windows Extract All → More info → Run anyway, the unsigned explanation and the official-Releases-page scope; tests/test_release_docs.py keeps both correct and safe (PKG-03, D-01) (wave 1)
 
 **Wave 2** *(blocked on 04-01)*
@@ -190,5 +190,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
-| 4. Standalone Packaging | 0/4 | Not started | - |
+| 4. Standalone Packaging | 1/4 | In Progress | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |

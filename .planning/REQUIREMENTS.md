@@ -34,8 +34,8 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 ### Packaging
 
-- [ ] **PKG-01**: User can download and run a standalone macOS build of the app with no separate Python install
-- [ ] **PKG-02**: User can download and run a standalone Windows build of the app with no separate Python install
+- [x] **PKG-01**: User can download and run a standalone macOS build of the app with no separate Python install
+- [x] **PKG-02**: User can download and run a standalone Windows build of the app with no separate Python install
 - [ ] **PKG-03**: Standalone builds are signed/notarized (macOS) or otherwise configured to avoid being blocked by Gatekeeper/SmartScreen on first launch
 
 ### MVR-xchange Networking
@@ -79,8 +79,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | UI-02 | Phase 1 | Complete |
 | RELI-01 | Phase 1 | Complete |
 | RELI-02 | Phase 1 | Complete |
-| PKG-01 | Phase 4 | Pending |
-| PKG-02 | Phase 4 | Pending |
+| PKG-01 | Phase 4 | Complete |
+| PKG-02 | Phase 4 | Complete |
 | PKG-03 | Phase 4 | Pending |
 | NET-01 | Phase 5 | Pending |
 | NET-02 | Phase 5 | Pending |

@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 current_phase: 04
-current_phase_name: standalone-packaging
+current_phase_name: Standalone Packaging
 status: executing
-stopped_at: Phase 4 context gathered
-last_updated: "2026-10-14T20:51:44.062Z"
+stopped_at: Completed 04-01-PLAN.md
+last_updated: "2026-10-14T23:14:54.138Z"
 last_activity: 2026-10-14
-last_activity_desc: Phase 02 complete, transitioned to Phase 4
-state_head: 2018a8e439341321961758f4f3d2c4f8ee28e0ed
+last_activity_desc: Phase 04 execution started
+state_head: adb8ede111d879c344b8bca28983bc312fa15ae4
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 21
-  completed_plans: 17
+  completed_plans: 18
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-11)
 
 **Core value:** You can pick a target GDTF file and any number of comparison files and immediately see which fixture attributes actually differ — without needing Python, dependencies, or command-line knowledge to run the tool.
-**Current focus:** Phase 4 — Standalone Packaging
+**Current focus:** Phase 04 — Standalone Packaging
 
 ## Current Position
 
-Phase: 04 (standalone-packaging) — READY TO EXECUTE
-Plan: Not started
+Phase: 04 (Standalone Packaging) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-10-14 — Phase 02 complete, transitioned to Phase 4
+Last activity: 2026-10-14 — Phase 04 execution started
 
 Progress: [██████░░░░] 60%
 
@@ -64,6 +64,7 @@ Progress: [██████░░░░] 60%
 | Phase 02 P02 | ~15min | 2 tasks | 5 files |
 | Phase 02 P03 | 15min | 3 tasks | 5 files |
 | Phase 03 P05 | 6m | 2 tasks | 7 files |
+| Phase 04 P01 | 47min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -84,6 +85,9 @@ Recent decisions affecting current work:
 - [Phase 03 gap G-03-3]: Cross-file beam-attribute rows match by POSITION (1st beam vs 1st beam, 2nd vs 2nd, ...) rather than by each file's own internal element name — user decision 2026-10-07, after diagnosis found exact-name matching (Phase 01 D-11) means different manufacturers' fixtures almost never line up, showing N/A everywhere instead of real comparison values.
 - [Phase 03 gap G-03-3]: Per-model physical-dimension rows (lens/housing/pigtail width/height/length) are dropped from cross-file comparison entirely — user decision 2026-10-07; these mesh part names have no meaningful counterpart between different fixtures.
 - [Phase 02]: UAT test 2 (real third-party .gdtf DMX check, 02-02 coverage D5) descoped 2026-10-14 by user decision - no real third-party .gdtf fixture file available for testing in this environment. It is recorded as a deferred follow-up in 02-UAT.md, and ATTR-01's 60+ evidence remains the automated synthetic 66-definition suite.
+- [Phase 04]: [Phase 04] PyInstaller 6.22.3 and helper packages approved at blocking-human legitimacy checkpoint before install
+- [Phase 04]: [Phase 04] Local macOS builds on this machine need DEVELOPER_DIR=/Library/Developer/CommandLineTools (Xcode 16.0 vs macOS 26.6.2 mismatch breaks lipo); env-var-only workaround, not expected to recur in CI
+- [Phase 04]: [Phase 04] qt-material's own PyInstaller hook supplies all theme/icon data; packaging/app.spec datas stays empty
 
 ### Pending Todos
 
@@ -110,8 +114,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-14T20:00:44.136Z
-Stopped at: Phase 4 context gathered
-Resume file: .planning/phases/04-standalone-packaging/04-CONTEXT.md
+Last session: 2026-10-14T23:14:54.100Z
+Stopped at: Completed 04-01-PLAN.md
+Resume file: None
 
 Last activity: 2026-10-14 - Completed quick task 261014-a1i: Formally descope the Phase 02 UAT requirement that a real third-party manufacturer .gdtf file be used to verify the Attributes panel DMX section
