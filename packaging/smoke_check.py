@@ -46,7 +46,7 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 APP_NAME = "GDTF Comparer"
 MAIN_WINDOW_TITLE = "GDTF Comparer"
@@ -206,6 +206,58 @@ def _tail(path: Path, lines: int) -> str:
     return "\n".join(content.splitlines()[-lines:])
 
 
+def _print_diagnostic(detail: str) -> None:
+    """Print extra failure context to stderr, keeping stdout's final line clean.
+
+    The CLI contract (see module docstring) is exactly one final stdout line
+    starting with "SMOKE PASS:" or "SMOKE FAIL:". Anything longer than that
+    one-line reason (such as a log tail or codesign's own multi-line output)
+    goes to stderr instead, so a caller scraping the last line of stdout
+    always finds the summary, never a fragment of diagnostic detail.
+    """
+    if detail:
+        print(detail, file=sys.stderr)
+
+
+def windows_window_titles(pid: int) -> List[str]:
+    """Return the titles of every top-level window owned by pid (win32 only).
+
+    Parameters:
+        pid: Process ID to look up windows for.
+
+    Returns:
+        One title string per top-level window EnumWindows reports for pid.
+        No visibility filter is applied, so this also finds windows on a
+        headless/non-interactive CI desktop.
+
+    Raises:
+        RuntimeError: if called on any platform other than win32.
+    """
+    if sys.platform != "win32":
+        raise RuntimeError("windows_window_titles is only available on win32")
+
+    import ctypes
+    from ctypes import wintypes
+
+    user32 = ctypes.windll.user32
+    titles: List[str] = []
+
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def _enum_proc(hwnd: int, _lparam: int) -> bool:
+        window_pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
+        if window_pid.value == pid:
+            length = user32.GetWindowTextLengthW(hwnd)
+            if length > 0:
+                buffer = ctypes.create_unicode_buffer(length + 1)
+                user32.GetWindowTextW(hwnd, buffer, length + 1)
+                titles.append(buffer.value)
+        return True
+
+    user32.EnumWindows(_enum_proc, 0)
+    return titles
+
+
 def run_smoke(
     exe: Path, startup_timeout: float, settle: float
 ) -> Tuple[bool, str]:
@@ -246,38 +298,51 @@ def run_smoke(
         while time.monotonic() < deadline:
             exit_code = process.poll()
             if exit_code is not None:
-                return (
-                    False,
-                    f"exited during startup with code {exit_code}\n"
-                    f"{_tail(log_path, _LOG_TAIL_LINES)}",
-                )
+                _print_diagnostic(_tail(log_path, _LOG_TAIL_LINES))
+                return (False, f"exited during startup with code {exit_code}")
             if any(fake_home.glob(theme_glob)):
                 themed = True
                 break
             time.sleep(_POLL_INTERVAL)
 
         if not themed:
+            _print_diagnostic(_tail(log_path, _LOG_TAIL_LINES))
             return (
                 False,
-                f"no qt-material theme icons after {startup_timeout} seconds\n"
-                f"{_tail(log_path, _LOG_TAIL_LINES)}",
+                f"no qt-material theme icons after {startup_timeout} seconds",
             )
 
+        seen_titles: List[str] = []
         settle_deadline = time.monotonic() + settle
         while time.monotonic() < settle_deadline:
             exit_code = process.poll()
             if exit_code is not None:
+                _print_diagnostic(_tail(log_path, _LOG_TAIL_LINES))
                 return (
                     False,
-                    f"exited during the settle period with code {exit_code}\n"
-                    f"{_tail(log_path, _LOG_TAIL_LINES)}",
+                    f"exited during the settle period with code {exit_code}",
                 )
+            if sys.platform == "win32":
+                seen_titles = windows_window_titles(process.pid)
+                if PYINSTALLER_ERROR_DIALOG_TITLE in seen_titles:
+                    return (False, "PyInstaller error dialog shown")
             time.sleep(_POLL_INTERVAL)
+
+        if sys.platform == "win32":
+            seen_titles = windows_window_titles(process.pid)
+            if MAIN_WINDOW_TITLE not in seen_titles:
+                return (
+                    False,
+                    f"no '{MAIN_WINDOW_TITLE}' window "
+                    f"(window titles seen: {seen_titles})",
+                )
 
         return (
             True,
             f"{exe} started, applied its theme and stayed up {settle} s",
         )
+    except KeyboardInterrupt:
+        return (False, "interrupted")
     finally:
         if process is not None and process.poll() is None:
             process.terminate()
@@ -335,7 +400,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             app_bundle = exe.parents[2]
             signature_error = verify_app_signature(app_bundle)
             if signature_error is not None:
-                print(f"SMOKE FAIL: invalid code signature\n{signature_error}")
+                _print_diagnostic(signature_error)
+                print("SMOKE FAIL: invalid code signature")
                 return 1
 
         passed, message = run_smoke(exe, args.startup_timeout, args.settle)
