@@ -137,7 +137,7 @@ coverage:
     description: "On a real third-party moving-light .gdtf file, the Attributes panel shows several naturally-named DMX sections totalling 60+ attributes, and ticking Pan/typing a search term behaves as expected in the actual qt-material-rendered UI"
     verification: []
     human_judgment: true
-    rationale: "Task 2's <human-check> requires a real third-party GDTF file (the offscreen test platform's synthetic 66-definition fixture proves the mechanism but not real-world attribute counts or section-name readability) and human judgment of the rendered UI. Deferred to end-of-phase per workflow.human_verify_mode=end-of-phase and carried into /gsd-verify-work, same as Plan 02-01's D3."
+    rationale: "DESCOPED 2026-10-14 (user decision): no real third-party .gdtf fixture file available for testing in this environment, so this check cannot be executed here. Recorded in 02-UAT.md test 2 as a non-blocking deferred follow-up. Originally deferred to end-of-phase per workflow.human_verify_mode=end-of-phase. The 60+ mechanism stays proven by the automated synthetic 66-definition suite (D1, D2)."
 
 duration: ~15min active (across two sessions, separated by a session rate-limit interruption between Task 1 and Task 2)
 completed: 2026-09-30
@@ -206,7 +206,7 @@ None - no external service configuration required.
 
 - Plan 02-03 (differences-only filtering) sees the same richer row set through the unchanged `compare()`/`attribute_catalog()`/`AttributePicker` chain -- no new integration work needed there.
 - Phase 3's ATTR-03 (saved compare profiles) will persist `(category, attribute)` pairs using this exact `"DMX: <feature group>"` / definition-Name scheme; renaming either half later means migrating saved profiles (plan's `<reversibility>` note on Task 1).
-- Task 2's `<human-check>` (real third-party GDTF file, 60+ attributes, section-name readability, qt-material rendering) is deferred to end-of-phase per `workflow.human_verify_mode=end-of-phase` and is carried into `/gsd-verify-work` (see coverage entry D5).
+- Task 2's `<human-check>` (real third-party GDTF file, 60+ attributes, section-name readability, qt-material rendering) is deferred to end-of-phase per `workflow.human_verify_mode=end-of-phase` and is carried into `/gsd-verify-work` (see coverage entry D5). It was later DESCOPED 2026-10-14 (no real third-party .gdtf fixture file available for testing in this environment).
 - With this plan complete, ATTR-01 ("browse/search the full set of GDTF attributes, 60+ properties, not just Beam/Physical Properties") is now fully delivered across Plans 02-01 (browsing/search mechanism) and 02-02 (the full attribute set itself) -- `requirements.ready-ids` reports it ready to mark complete.
 
 ---

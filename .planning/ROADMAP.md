@@ -14,7 +14,7 @@ GDTF Comparer rebuilds a crash-prone Tkinter prototype into a polished, standalo
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Foundation Rebuild** - Spec-correct parsing, decoupled architecture, and a modernized GUI shell replace the old hand-rolled/crash-prone comparer (completed 2026-09-29)
-- [ ] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted
+- [x] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted (completed 2026-10-14)
 - [x] **Phase 3: Compare Profiles** - Users can save and reload reusable attribute selections ("compare profiles") for future comparisons (completed 2026-10-11)
 - [ ] **Phase 4: Standalone Packaging** - Users can download and run signed/notarized standalone builds on macOS and Windows with no Python install
 - [ ] **Phase 5: MVR-xchange Networking** - Users can discover LAN peers and pull MVR fixture data into the compare workflow, fully optional
@@ -83,7 +83,7 @@ Plans:
   2. User can search/filter the attribute list and choose which attributes are included in a comparison.
   3. Values that differ between the target and any comparison file are visually highlighted in the comparison results.
 
-**Plans**: 3/3 plans executed
+**Plans**: 3/3 plans complete
 
 Plans:
 **Wave 1**
@@ -174,7 +174,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
-| 2. Attribute Browsing & Diff Highlighting | 3/3 | In Progress|  |
+| 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 0/TBD | Not started | - |
 | 5. MVR-xchange Networking | 0/TBD | Not started | - |
