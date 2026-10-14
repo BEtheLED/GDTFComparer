@@ -38,9 +38,16 @@ created: "2026-10-14"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 04-01-01 | 01 | 0 | PKG-01/02 | T-04-01 | Pin `pyinstaller==6.22.3`; package-legitimacy checkpoint before install | setup | `pip show pyinstaller` | ❌ W0 — PyInstaller not yet a dependency | ⬜ pending |
-| 04-01-02 | 01 | 1 | PKG-01/02 | — | N/A | smoke (CI) | CI step: launch frozen binary on `macos-latest`/`windows-latest` runner with a timeout | ❌ W0 — `.github/workflows/release.yml` doesn't exist | ⬜ pending |
-| 04-01-03 | 01 | 1 | PKG-03 | T-04-01 | Narrowly-scoped bypass instructions (verify download came from this project's GitHub Releases) | manual | n/a — OS security dialog, no automated test possible | ❌ Manual UAT required | ⬜ pending |
+| 04-01 Task 1 | 01 | 1 | PKG-01/02 | T-04-SC | checkpoint:human-verify — package-legitimacy check for `pyinstaller==6.22.3` before install | manual | n/a — human approval gate | ❌ W0 — PyInstaller not yet a dependency | ⬜ pending |
+| 04-01 Task 2 | 01 | 1 | PKG-01/02 | T-04-01 | `packaging/app.spec` builds a standalone macOS `.app`; smoke check proves launch/theme/stay-up | tracer | `PyInstaller --noconfirm --clean packaging/app.spec && python packaging/smoke_check.py --dist dist` | ❌ W0 — spec file doesn't exist yet | ⬜ pending |
+| 04-01 Task 3 | 01 | 1 | PKG-01/02 | — | Smoke check correctly fails on a broken app | auto (tdd) | `pytest tests/test_smoke_check.py -q -W error::DeprecationWarning` | ❌ W0 — test file doesn't exist yet | ⬜ pending |
+| 04-02 Task 1 | 02 | 2 | PKG-01/02 | T-04-SC | checkpoint:decision — "publish?" decision (repo never pushed to origin; GH token lacks `workflow` scope) | manual | n/a — human approval gate, rated one-way | ❌ N/A — decision, not a file | ⬜ pending |
+| 04-02 Task 2 | 02 | 2 | PKG-01/02 | T-04-01 | CI builds + smoke-checks the macOS app on `macos-latest` | tracer | `gh run download ... && python packaging/smoke_check.py --zip ...` | ❌ W0 — `.github/workflows/release.yml` doesn't exist | ⬜ pending |
+| 04-02 Task 3 | 02 | 2 | PKG-01/02 | T-04-01 | Same run adds Windows build; a version tag would publish both or neither | auto | `gh run view ... --json jobs` assertion on build-macos/build-windows/release job states | ❌ W0 — workflow doesn't exist | ⬜ pending |
+| 04-03 Task 1 | 03 | 1 | PKG-03 | — | README download/bypass section matches current OS UX (corrected Gatekeeper flow) | tracer | `pytest tests/test_release_docs.py -q -W error::DeprecationWarning` | ❌ W0 — doc/test don't exist yet | ⬜ pending |
+| 04-03 Task 2 | 03 | 1 | PKG-03 | — | GitHub Release description kept in sync with README by the same test | auto (tdd) | `pytest tests/test_release_docs.py -q -W error::DeprecationWarning` | ❌ W0 | ⬜ pending |
+| 04-04 Task 1 | 04 | 3 | PKG-01/02/03 | T-04-01/SC | `packaging/RELEASING.md` recipe followed to publish v0.1.0; uploads verified as github-actions[bot] only | tracer | `gh release view v0.1.0 --json ...` assertions | ❌ W0 — RELEASING.md doesn't exist | ⬜ pending |
+| 04-04 Task 2 | 04 | 3 | PKG-01/02/03 | — | Published downloads fetched back and re-checked; human walks both OSes | manual + auto | `gh release download v0.1.0 ... && python packaging/smoke_check.py --zip ...` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
