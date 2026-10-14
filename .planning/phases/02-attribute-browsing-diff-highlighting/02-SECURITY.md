@@ -91,3 +91,11 @@ grep/test-level verification is sufficient at ASVS level 1.
 - [x] `status: verified` set in frontmatter
 
 **Approval:** verified 2026-10-12
+
+## Security Audit 2026-10-14
+
+| Metric | Count |
+|---|---|
+| Threats found | 14 |
+| Closed | 14 |
+| Open | 0 |
