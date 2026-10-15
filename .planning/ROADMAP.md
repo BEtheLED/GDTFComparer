@@ -159,9 +159,9 @@ Plans:
 
 **Wave 2** *(blocked on 04-01)*
 
-- [ ] 04-02-PLAN.md — Blocking-human "publish?" decision, then .github/workflows/release.yml: build-macos and build-windows jobs build, zip and smoke-check each download on GitHub's machines; a tag-only, version-guarded release job publishes both or neither; proven by a green hand-started run whose downloads are checked here (PKG-01, PKG-02, D-02/D-03/D-04) (wave 2)
+- [ ] 04-02-PLAN.md — HALTED: Task 1's blocking-human "publish?" decision was answered "hold" (2026-10-14). No .github/workflows/release.yml was created, nothing was pushed to GitHub, no CI build ran. Tasks 2-3 (build-macos/build-windows jobs, zip and smoke-check, tag-only version-guarded release job) do not exist yet. See 04-02-SUMMARY.md (status: halted). Resume by re-running this plan once the user answers "publish" (PKG-01, PKG-02, D-02/D-03/D-04) (wave 2)
 
-**Wave 3** *(blocked on 04-02 and 04-03)*
+**Wave 3** *(blocked on 04-02 and 04-03 — BLOCKED: 04-02 is halted, so 04-04 cannot proceed until the user answers "publish")*
 
 - [ ] 04-04-PLAN.md — Write packaging/RELEASING.md and follow it to publish GitHub Release v0.1.0 with GDTF-Comparer-macos.zip and GDTF-Comparer-windows.zip; fetch the published files back and check them; end-of-phase human checks walk the documented first launch on a real Mac and a real Windows PC (PKG-01, PKG-02, PKG-03) (wave 3)
 
