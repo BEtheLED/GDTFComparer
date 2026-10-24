@@ -180,7 +180,7 @@ Plans:
   3. User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself) and a different user, in a different session, can load that file back in.
   4. User can point the app at a local folder of candidate GDTF files they maintain and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), with candidates ranked best match first.
 
-**Plans**: 4/5 plans executed
+**Plans**: 5/5 plans executed
 
 Plans:
 **Wave 1**
@@ -195,7 +195,7 @@ Plans:
 
 **Wave 3** *(blocked on 05-02 and 05-03)*
 
-- [ ] 05-05-PLAN.md — Inventory check depth: single-folder read-only scan, duplicates kept, unreadable files listed, empty states, scoring pinned to the user's chosen rule at every edge, lights-only fair ranking, colors visible in both themes with words and a legend, one check at a time (SUB-04) (wave 3)
+- [x] 05-05-PLAN.md — Inventory check depth: single-folder read-only scan, duplicates kept, unreadable files listed, empty states, scoring pinned to the user's chosen rule at every edge, lights-only fair ranking, colors visible in both themes with words and a legend, one check at a time (SUB-04) (wave 3)
 
 ## Progress
 
@@ -208,4 +208,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 2/4 | In Progress | - |
-| 5. MVR Import & Fixture Substitution | 4/5 | In Progress | - |
+| 5. MVR Import & Fixture Substitution | 5/5 | In Progress | - |
