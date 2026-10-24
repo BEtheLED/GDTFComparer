@@ -3,9 +3,15 @@
 Shows one checkbox per eligible attribute of a shown fixture type; checking
 one reveals a direction dropdown and a tolerance spinner, mirroring
 gui.attribute_picker's checkable-tree shape and coalescing-emit pattern.
+
+Each fixture type keeps its own independent checklist (D-04): switching away
+from a fixture type and back restores exactly what was checked, with its
+direction and tolerance, via self._remembered -- keyed by the GDTF file name
+(gdtf_spec) the window passes into show_fixture. clear() empties this memory,
+so importing a different MVR always starts every fixture type fresh.
 """
 
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (
@@ -75,6 +81,10 @@ class RequirementsEditor(QWidget):
         self._rebuilding = False
         self._gdtf_spec: Optional[str] = None
         self._fixture: Optional[FixtureModel] = None
+        # D-04: one entry per fixture type (gdtf_spec) ever shown this
+        # session, holding every leaf's (checked, direction, tolerance) at
+        # the moment it was last hidden by a rebuild. Emptied by clear().
+        self._remembered: Dict[str, Dict[AttributeKey, Tuple[bool, str, float]]] = {}
 
         self._emit_timer = QTimer(self)
         self._emit_timer.setSingleShot(True)
@@ -88,11 +98,17 @@ class RequirementsEditor(QWidget):
 
         Parameters:
             key: The fixture type's gdtf_spec (MVR zip member name) -- saved
-                into the eventual RequirementSet.gdtf_file.
+                into the eventual RequirementSet.gdtf_file, and the key
+                self._remembered restores this fixture type's checklist by
+                (D-04).
             fixture: The FixtureModel whose eligible attributes to show.
         """
+        self._capture_current()
+
         self._gdtf_spec = key
         self._fixture = fixture
+        remembered_for_key = self._remembered.get(key, {})
+        restored_leaves = []
 
         self._rebuilding = True
         self.tree.blockSignals(True)
@@ -121,21 +137,44 @@ class RequirementsEditor(QWidget):
                 leaf_item.setData(COL_ATTRIBUTE, KEY_ROLE, attribute_key)
                 leaf_item.setData(COL_ATTRIBUTE, VALUE_ROLE, value)
                 direction = default_direction(attribute_key, value)
-                leaf_item.setData(COL_ATTRIBUTE, DIRECTION_ROLE, direction.value)
-                leaf_item.setData(
-                    COL_ATTRIBUTE, TOLERANCE_ROLE, default_tolerance(attribute_key, value, direction)
+                tolerance = default_tolerance(attribute_key, value, direction)
+
+                remembered = remembered_for_key.get(attribute_key)
+                checked = False
+                if remembered is not None:
+                    checked, direction_value, tolerance = remembered
+                else:
+                    direction_value = direction.value
+
+                leaf_item.setData(COL_ATTRIBUTE, DIRECTION_ROLE, direction_value)
+                leaf_item.setData(COL_ATTRIBUTE, TOLERANCE_ROLE, tolerance)
+                leaf_item.setCheckState(
+                    COL_ATTRIBUTE, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
                 )
-                leaf_item.setCheckState(COL_ATTRIBUTE, Qt.CheckState.Unchecked)
+                if checked:
+                    restored_leaves.append(leaf_item)
 
             self.tree.expandAll()
         finally:
             self.tree.blockSignals(False)
             self._rebuilding = False
 
+        # Restored leaves need their direction/tolerance widgets created the
+        # same way a manual tick does (_on_item_changed), but blockSignals
+        # above suppressed that signal -- so it is done explicitly here,
+        # outside the signal block, through the same helper.
+        for leaf_item in restored_leaves:
+            self._install_leaf_widgets(leaf_item)
+
         self.empty_label.setVisible(False)
 
     def clear(self) -> None:
-        """Empty the tree, forget the shown fixture and show the empty-state label."""
+        """Empty the tree, forget every remembered checklist and show the empty-state label.
+
+        A new MVR import always starts every fixture type fresh (D-04): the
+        outgoing fixture's state is never captured into self._remembered
+        here, unlike show_fixture's switch between two known types.
+        """
         self._rebuilding = True
         self.tree.blockSignals(True)
         try:
@@ -145,7 +184,32 @@ class RequirementsEditor(QWidget):
             self._rebuilding = False
         self._gdtf_spec = None
         self._fixture = None
+        self._remembered = {}
         self.empty_label.setVisible(True)
+
+    def _capture_current(self) -> None:
+        """Save the currently shown fixture's leaf states into self._remembered.
+
+        Does nothing when no fixture is currently shown. Captures every
+        leaf (checked, direction, tolerance), not only checked ones, so a
+        row unticked after being ticked stays unticked when its type is
+        shown again.
+        """
+        if self._gdtf_spec is None:
+            return
+
+        captured: Dict[AttributeKey, Tuple[bool, str, float]] = {}
+        root = self.tree.invisibleRootItem()
+        for section_index in range(root.childCount()):
+            section = root.child(section_index)
+            for leaf_index in range(section.childCount()):
+                leaf = section.child(leaf_index)
+                attribute_key = leaf.data(COL_ATTRIBUTE, KEY_ROLE)
+                checked = leaf.checkState(COL_ATTRIBUTE) == Qt.CheckState.Checked
+                direction_value = leaf.data(COL_ATTRIBUTE, DIRECTION_ROLE)
+                tolerance = float(leaf.data(COL_ATTRIBUTE, TOLERANCE_ROLE))
+                captured[attribute_key] = (checked, direction_value, tolerance)
+        self._remembered[self._gdtf_spec] = captured
 
     def requirement_set(self) -> Optional[RequirementSet]:
         """Return the currently checked attributes as a RequirementSet, or None.
