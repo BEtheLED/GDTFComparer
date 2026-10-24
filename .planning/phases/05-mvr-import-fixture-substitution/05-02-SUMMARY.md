@@ -212,6 +212,10 @@ This plan's slice (MVR import hardened at full breadth: nesting, accented names,
 
 No blockers.
 
+## Self-Check: PASSED
+
+All 9 created/modified files verified present on disk; all 4 commits (`8962238`, `c01594b`, `605d7e5`, `c5f0fde`) verified as ancestors of HEAD.
+
 ---
 *Phase: 05-mvr-import-fixture-substitution*
 *Completed: 2026-10-24*
