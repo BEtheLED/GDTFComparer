@@ -9,24 +9,30 @@ through a real, separate Python process (test_round_trip_in_a_separate_
 process), never coercing a file that isn't exactly understood.
 """
 
+import errno
 import json
 import os
 import subprocess
 import sys
+import threading
+import time
 import unicodedata
 from pathlib import Path
 
 import pytest
 
+from gdtf_comparer.core import requirements_repository as requirements_repository_module
 from gdtf_comparer.core.errors import RequirementsFileError
 from gdtf_comparer.core.models import AttributeKey
 from gdtf_comparer.core.requirements_repository import (
+    MAX_REQUIREMENTS_COUNT,
     MAX_SUGGESTED_NAME_LENGTH,
+    MAX_TEXT_FIELD_LENGTH,
     load_requirements,
     save_requirements,
     suggested_file_name,
 )
-from gdtf_comparer.core.substitution import Direction, Requirement, RequirementSet
+from gdtf_comparer.core.substitution import TOLERANCE_KIND, Direction, Requirement, RequirementSet
 
 SRC_PATH = Path(__file__).resolve().parents[2] / "src"
 
@@ -203,3 +209,257 @@ def test_saving_twice_is_byte_identical(tmp_path):
     second_bytes = path.read_bytes()
 
     assert first_bytes == second_bytes
+
+
+# ---------------------------------------------------------------------------
+# Task 2: a damaged, foreign, oversized or newer requirements file is
+# refused in plain words, rather than coerced or partially loaded.
+# ---------------------------------------------------------------------------
+
+
+def _assert_refusal_message(error: RequirementsFileError, basename: str) -> None:
+    """Every refusal names the file, ends "Nothing was loaded." and never leaks a traceback."""
+    message = str(error)
+    assert basename in message
+    assert message.endswith("Nothing was loaded.")
+    assert "Traceback" not in message
+
+
+def _write_json(tmp_path, payload, name="req.json"):
+    path = tmp_path / name
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _with_requirement(payload, index, **overrides):
+    """Return payload with its requirements[index] dict updated by overrides."""
+    requirements = [dict(item) for item in payload["requirements"]]
+    requirements[index].update(overrides)
+    return {**payload, "requirements": requirements}
+
+
+# requirements[0] is the LOWER (numeric-direction) Weight requirement;
+# requirements[1] is the EXACT (text-capable) BeamType requirement -- per
+# the shared _set() helper above.
+_PAYLOAD_MUTATIONS = {
+    "format_missing": lambda p: {k: v for k, v in p.items() if k != "format"},
+    "format_wrong": lambda p: {**p, "format": "something-else"},
+    "version_zero": lambda p: {**p, "version": 0},
+    "version_string": lambda p: {**p, "version": "1"},
+    "version_bool": lambda p: {**p, "version": True},
+    "newer_version": lambda p: {**p, "version": 2},
+    "tolerance_kind_other": lambda p: {**p, "tolerance_kind": "other"},
+    "extra_top_level_key": lambda p: {**p, "extra": 1},
+    "missing_top_level_key": lambda p: {k: v for k, v in p.items() if k != "tolerance_kind"},
+    "extra_fixture_key": lambda p: {**p, "fixture": {**p["fixture"], "extra": "x"}},
+    "missing_fixture_key": lambda p: {
+        **p,
+        "fixture": {k: v for k, v in p["fixture"].items() if k != "manufacturer"},
+    },
+    "extra_requirement_key": lambda p: _with_requirement(p, 0, extra=1),
+    "missing_requirement_key": lambda p: {
+        **p,
+        "requirements": [
+            {k: v for k, v in p["requirements"][0].items() if k != "tolerance"},
+            dict(p["requirements"][1]),
+        ],
+    },
+    "direction_sideways": lambda p: _with_requirement(p, 0, direction="sideways"),
+    "tolerance_negative": lambda p: _with_requirement(p, 0, tolerance=-1),
+    "tolerance_bool": lambda p: _with_requirement(p, 0, tolerance=True),
+    "tolerance_string": lambda p: _with_requirement(p, 0, tolerance="2"),
+    "tolerance_null": lambda p: _with_requirement(p, 0, tolerance=None),
+    "numeric_direction_text_target": lambda p: _with_requirement(p, 0, target="15"),
+    "exact_target_bool": lambda p: _with_requirement(p, 1, target=True),
+    "category_empty": lambda p: _with_requirement(p, 0, category=""),
+    "attribute_empty": lambda p: _with_requirement(p, 0, attribute=""),
+    "fixture_name_too_long": lambda p: {
+        **p,
+        "fixture": {**p["fixture"], "name": "x" * (MAX_TEXT_FIELD_LENGTH + 1)},
+    },
+    "too_many_requirements": lambda p: {
+        **p,
+        "requirements": [
+            {**p["requirements"][0], "attribute": f"Attr{i}"} for i in range(MAX_REQUIREMENTS_COUNT + 1)
+        ],
+    },
+    "duplicate_requirement_triple": lambda p: {
+        **p,
+        "requirements": [p["requirements"][0], dict(p["requirements"][0])],
+    },
+}
+
+_EXPECTED_SUBSTRINGS = {
+    "format_missing": "is not a fixture requirements file",
+    "format_wrong": "is not a fixture requirements file",
+    "newer_version": "saved by a newer version",
+    "tolerance_kind_other": "different kind of tolerance",
+}
+
+
+@pytest.mark.parametrize("name, mutate", list(_PAYLOAD_MUTATIONS.items()), ids=list(_PAYLOAD_MUTATIONS.keys()))
+def test_refuses_damaged_or_foreign_files(tmp_path, name, mutate):
+    base = _payload(tmp_path, name=f"base-{name}.json")
+    mutated = mutate(base)
+    path = _write_json(tmp_path, mutated, name=f"{name}.json")
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(path))
+
+    _assert_refusal_message(exc_info.value, path.name)
+    if name in _EXPECTED_SUBSTRINGS:
+        assert _EXPECTED_SUBSTRINGS[name] in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "name, raw",
+    [
+        ("not_json", b"{"),
+        ("not_utf8", b"\xff\xfe"),
+        ("json_list", b"[]"),
+        ("foreign_app_json", b'{"profiles": []}'),
+    ],
+)
+def test_refuses_raw_bytes(tmp_path, name, raw):
+    path = tmp_path / f"{name}.json"
+    path.write_bytes(raw)
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(path))
+
+    _assert_refusal_message(exc_info.value, path.name)
+
+
+def test_duplicate_json_key_is_refused(tmp_path):
+    text = (
+        '{"format": "gdtf-comparer-fixture-requirements", "version": 1, '
+        f'"tolerance_kind": "{TOLERANCE_KIND}", '
+        '"fixture": {"name": "Acme Spot", "manufacturer": "Acme", "gdtf_file": "Acme@Spot.gdtf"}, '
+        '"requirements": [{"category": "Physical Properties", "element": "", "attribute": "Weight", '
+        '"direction": "lower", "target": 15.0, "target": 16.0, "tolerance": 2.0}]}'
+    )
+    path = tmp_path / "duplicate-key.json"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(path))
+
+    _assert_refusal_message(exc_info.value, path.name)
+
+
+@pytest.mark.parametrize(
+    "field, token",
+    [("target", "NaN"), ("tolerance", "Infinity"), ("target", "-Infinity")],
+)
+def test_raw_nan_or_infinity_tokens_are_refused(tmp_path, field, token):
+    target_value = token if field == "target" else "15.0"
+    tolerance_value = token if field == "tolerance" else "2.0"
+    text = (
+        '{"format": "gdtf-comparer-fixture-requirements", "version": 1, '
+        f'"tolerance_kind": "{TOLERANCE_KIND}", '
+        '"fixture": {"name": "Acme Spot", "manufacturer": "Acme", "gdtf_file": "Acme@Spot.gdtf"}, '
+        '"requirements": [{"category": "Physical Properties", "element": "", "attribute": "Weight", '
+        f'"direction": "lower", "target": {target_value}, "tolerance": {tolerance_value}}}]}}'
+    )
+    path = tmp_path / f"raw-constant-{field}-{token}.json"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(path))
+
+    _assert_refusal_message(exc_info.value, path.name)
+
+
+def test_deeply_nested_target_is_refused(tmp_path):
+    nested = "[" * 100000 + "]" * 100000
+    text = (
+        '{"format": "gdtf-comparer-fixture-requirements", "version": 1, '
+        f'"tolerance_kind": "{TOLERANCE_KIND}", '
+        '"fixture": {"name": "Acme Spot", "manufacturer": "Acme", "gdtf_file": "Acme@Spot.gdtf"}, '
+        '"requirements": [{"category": "Physical Properties", "element": "", "attribute": "Weight", '
+        f'"direction": "lower", "target": {nested}, "tolerance": 2.0}}]}}'
+    )
+    path = tmp_path / "deeply-nested.json"
+    path.write_text(text, encoding="utf-8")
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(path))
+
+    _assert_refusal_message(exc_info.value, path.name)
+
+
+def test_exact_accepts_text_or_number(tmp_path):
+    requirement_set = _set(
+        requirements=(Requirement(AttributeKey("Beam", "", "Zoom"), 3.0, Direction.EXACT, 0.0),)
+    )
+    path = tmp_path / "exact-number.json"
+    save_requirements(str(path), requirement_set)
+
+    loaded = load_requirements(str(path))
+    assert loaded.requirements[0].target == 3.0
+
+
+def test_too_large_file_refused(tmp_path, monkeypatch):
+    path = tmp_path / "req.json"
+    save_requirements(str(path), _set())
+    monkeypatch.setattr(requirements_repository_module, "MAX_REQUIREMENTS_FILE_BYTES", 64)
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(path))
+
+    assert "too large" in str(exc_info.value)
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="opening a directory on Windows raises a permission error")
+def test_folder_refused(tmp_path):
+    folder = tmp_path / "folder.json"
+    folder.mkdir()
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(folder))
+
+    assert "not a regular file" in str(exc_info.value)
+
+
+def test_fifo_refused_without_blocking(tmp_path):
+    if not hasattr(os, "mkfifo"):
+        pytest.skip("os.mkfifo is not available on this platform")
+
+    fifo_path = tmp_path / "pipe.json"
+    os.mkfifo(fifo_path)
+
+    def _keep_fifo_openable() -> None:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            try:
+                fd = os.open(str(fifo_path), os.O_WRONLY | os.O_NONBLOCK)
+            except OSError:
+                pass
+            else:
+                os.close(fd)
+            time.sleep(0.1)
+
+    helper = threading.Thread(target=_keep_fifo_openable, daemon=True)
+    helper.start()
+
+    try:
+        start = time.monotonic()
+        with pytest.raises(RequirementsFileError) as exc_info:
+            load_requirements(str(fifo_path))
+        elapsed = time.monotonic() - start
+
+        assert "not a regular file" in str(exc_info.value)
+        assert elapsed < 2
+    finally:
+        helper.join(timeout=5)
+
+
+def test_missing_file(tmp_path):
+    missing = tmp_path / "missing.json"
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        load_requirements(str(missing))
+
+    message = str(exc_info.value)
+    assert "could not be opened" in message
+    assert os.strerror(errno.ENOENT) in message
