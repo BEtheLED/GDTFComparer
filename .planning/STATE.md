@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 current_phase: 05
-current_phase_name: mvr-import-fixture-substitution
+current_phase_name: MVR Import & Fixture Substitution
 status: executing
-stopped_at: Phase 5 context gathered
-last_updated: "2026-10-24T16:38:35.911Z"
-last_activity: 2026-10-14
-last_activity_desc: Phase 04 execution started
-state_head: a2064ee3d77e276d404d3524fd19069e9e2a32c8
+stopped_at: Completed 05-01-PLAN.md
+last_updated: "2026-10-24T21:56:03.589Z"
+last_activity: 2026-10-24
+last_activity_desc: Phase 05 execution started
+state_head: 1130e7ebf0123ae28d0a1d71ec9fd8d17456ec43
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 26
-  completed_plans: 20
+  completed_plans: 21
 ---
 
 # Project State
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-10-11)
 
 **Core value:** You can pick a target GDTF file and any number of comparison files and immediately see which fixture attributes actually differ — without needing Python, dependencies, or command-line knowledge to run the tool.
-**Current focus:** Phase 04 — Standalone Packaging
+**Current focus:** Phase 05 — MVR Import & Fixture Substitution
 
 ## Current Position
 
-Phase: 05 (mvr-import-fixture-substitution) — READY TO EXECUTE
-Plan: 4 of 4 (04-02 HALTED — awaiting user's "publish" decision; 04-04 blocked on it)
-Status: Halted at Task 1's blocking-human decision (user answered "hold")
-Last activity: 2026-10-14 — Plan 04-02 halted by user's "hold" answer
+Phase: 05 (MVR Import & Fixture Substitution) — EXECUTING
+Plan: 2 of 5
+Status: Ready to execute
+Last activity: 2026-10-24 — Phase 05 execution started
 
 Progress: [██████░░░░] 60%
 
@@ -66,6 +66,7 @@ Progress: [██████░░░░] 60%
 | Phase 03 P05 | 6m | 2 tasks | 7 files |
 | Phase 04 P01 | 47min | 3 tasks | 4 files |
 | Phase 04 P03 | 5min | 2 tasks | 3 files |
+| Phase 05 P01 | 45min | 3 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -92,6 +93,8 @@ Recent decisions affecting current work:
 - [Phase 04]: [Phase 04]: Corrected D-01's bypass wording per RESEARCH Pitfall P1 — macOS right-click->Open is removed since Sequoia; shipped README/release-notes steps use System Settings > Privacy & Security > Open Anyway plus a scoped xattr -cr fallback
 - [Phase 04]: [Phase 04]: packaging/release-notes.md keeps a releases/latest link even on the release page itself, so one shared pytest suite can enforce every first-launch step identically across README.md and release-notes.md with no doc-specific exemptions
 - [Phase 04]: Plan 04-02 Task 1 publish decision answered: hold. No file created, nothing pushed to GitHub; plan halted (status: halted) until user later says publish.
+- [Phase 05]: Approved pymvr==1.0.7 after human legitimacy review (Task 1 checkpoint) — User visually confirmed pymvr's PyPI page and github.com/open-stage/python-mvr repo match the already-trusted pygdtf's author/org ("vanous", Open-Stage).
+- [Phase 05]: Tolerance semantics: option a - tolerance is the outer limit, in the attribute's own units (D-08/D-10 one-way door) — Implemented as core.substitution.TOLERANCE_KIND="absolute", CLOSEST_GREEN_FACTOR=0.5, CLOSEST_YELLOW_FACTOR=1.0. Green/yellow bands for closest-to-target are half/full the typed tolerance; higher/lower-is-better use the tolerance directly as the yellow boundary.
 
 ### Pending Todos
 
@@ -119,8 +122,8 @@ Items acknowledged and deferred at milestone close, most recent first:
 
 ## Session Continuity
 
-Last session: 2026-10-24T15:35:14.352Z
-Stopped at: Phase 5 context gathered
-Resume file: .planning/phases/05-mvr-import-fixture-substitution/05-CONTEXT.md
+Last session: 2026-10-24T21:56:03.548Z
+Stopped at: Completed 05-01-PLAN.md
+Resume file: None
 
 Last activity: 2026-10-14 - Completed quick task 261014-a1i: Formally descope the Phase 02 UAT requirement that a real third-party manufacturer .gdtf file be used to verify the Attributes panel DMX section
