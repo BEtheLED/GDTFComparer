@@ -463,3 +463,110 @@ def test_missing_file(tmp_path):
     message = str(exc_info.value)
     assert "could not be opened" in message
     assert os.strerror(errno.ENOENT) in message
+
+
+# ---------------------------------------------------------------------------
+# Task 3: saving never leaves a half-written requirements file (SUB-03
+# concurrency edge).
+# ---------------------------------------------------------------------------
+
+
+def test_failed_replace_keeps_existing_file(tmp_path, monkeypatch):
+    path = tmp_path / "req.json"
+    save_requirements(str(path), _set())
+    original_bytes = path.read_bytes()
+
+    def _boom(*args, **kwargs):
+        raise OSError(errno.EIO, "boom")
+
+    monkeypatch.setattr(requirements_repository_module.os, "replace", _boom)
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        save_requirements(str(path), _set(fixture_name="Different Spot"))
+
+    assert isinstance(exc_info.value.__cause__, OSError)
+    assert str(path) in str(exc_info.value)
+    assert path.read_bytes() == original_bytes
+    assert [entry.name for entry in tmp_path.iterdir()] == [path.name]
+
+
+def test_failed_write_keeps_existing_file(tmp_path, monkeypatch):
+    path = tmp_path / "req.json"
+    save_requirements(str(path), _set())
+    original_bytes = path.read_bytes()
+
+    real_fdopen = requirements_repository_module.os.fdopen
+
+    def _boom_fdopen(fd, *args, **kwargs):
+        handle = real_fdopen(fd, *args, **kwargs)
+
+        def _boom_write(_data):
+            raise OSError(errno.ENOSPC, "disk full")
+
+        handle.write = _boom_write
+        return handle
+
+    monkeypatch.setattr(requirements_repository_module.os, "fdopen", _boom_fdopen)
+
+    with pytest.raises(RequirementsFileError) as exc_info:
+        save_requirements(str(path), _set(fixture_name="Different Spot"))
+
+    assert isinstance(exc_info.value.__cause__, OSError)
+    assert path.read_bytes() == original_bytes
+    assert [entry.name for entry in tmp_path.iterdir()] == [path.name]
+
+
+def test_save_to_missing_folder_is_friendly(tmp_path):
+    path = tmp_path / "does-not-exist" / "req.json"
+
+    with pytest.raises(RequirementsFileError):
+        save_requirements(str(path), _set())
+
+    assert not path.exists()
+    assert not path.parent.exists()
+
+
+def test_overwrite_replaces_whole_file(tmp_path):
+    path = tmp_path / "req.json"
+    one_requirement = _set(
+        requirements=(Requirement(AttributeKey("Physical Properties", "", "Weight"), 15.0, Direction.LOWER, 2.0),)
+    )
+    save_requirements(str(path), one_requirement)
+
+    three_requirements = _set(
+        requirements=(
+            Requirement(AttributeKey("Physical Properties", "", "Weight"), 15.0, Direction.LOWER, 2.0),
+            Requirement(AttributeKey("Beam", "Beam 1", "BeamType"), "Spot", Direction.EXACT, 0.0),
+            Requirement(AttributeKey("Beam", "", "Zoom"), 10.0, Direction.CLOSEST, 1.0),
+        )
+    )
+    save_requirements(str(path), three_requirements)
+
+    loaded = load_requirements(str(path))
+    assert len(loaded.requirements) == 3
+
+    with open(path, "r", encoding="utf-8") as fh:
+        json.load(fh)  # must be a single valid JSON document
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file permissions only")
+def test_saved_file_is_readable_by_others(tmp_path):
+    path = tmp_path / "req.json"
+    save_requirements(str(path), _set())
+
+    mode = os.stat(path).st_mode
+    assert mode & 0o044 != 0
+
+
+def test_unsaveable_number_is_refused(tmp_path):
+    path = tmp_path / "req.json"
+    bad_set = _set(
+        requirements=(
+            Requirement(AttributeKey("Physical Properties", "", "Weight"), 15.0, Direction.LOWER, float("nan")),
+        )
+    )
+
+    with pytest.raises(RequirementsFileError):
+        save_requirements(str(path), bad_set)
+
+    assert not path.exists()
