@@ -49,21 +49,24 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     window.show()
     exit_code = app.exec()
 
-    if window.is_comparison_running():
+    if window.is_comparison_running() or window.is_substitution_running():
         # Qt aborts the process if a still-running QThread is destroyed
         # during interpreter shutdown, and a thread blocked in a kernel read
         # cannot be stopped from Python (WR-01, T-01-29). This path only runs
         # once the event loop has already ended (closeEvent's bounded wait,
-        # CLOSE_WAIT_TIMEOUT_MS, gave up on a stuck worker) -- normal closes
-        # never reach here. Nothing is lost by skipping the rest of normal
-        # shutdown: comparison work never writes to disk (T-01-15), and any
-        # compare-profile save (core.profile_repository, Phase 3) runs
-        # synchronously on the GUI thread and finishes -- atomically -- well
-        # before the event loop returns, so this path can never cut one
-        # short.
+        # CLOSE_WAIT_TIMEOUT_MS / SUBSTITUTION_CLOSE_WAIT_TIMEOUT_MS, gave up
+        # on a stuck worker) -- normal closes never reach here. Nothing is
+        # lost by skipping the rest of normal shutdown: comparison work and
+        # the Find Substitutes window's MVR import/inventory scan workers
+        # (Phase 5 Task 3) only read files, and a compare-profile save
+        # (core.profile_repository, Phase 3) or a requirements-file save
+        # (core.requirements_repository, Phase 5) runs synchronously on the
+        # GUI thread and finishes -- atomically -- well before the event loop
+        # returns, so this path can never cut one short.
         _LOGGER.warning(
-            "Comparison worker still running at shutdown; exiting the "
-            "process directly instead of risking a Qt abort."
+            "A comparison or Find Substitutes worker is still running at "
+            "shutdown; exiting the process directly instead of risking a "
+            "Qt abort."
         )
         logging.shutdown()
         sys.stdout.flush()

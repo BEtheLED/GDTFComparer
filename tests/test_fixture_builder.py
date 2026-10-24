@@ -15,6 +15,7 @@ def test_toolchain_versions():
     assert importlib.metadata.version("defusedxml") == "0.7.1"
     assert importlib.metadata.version("qt-material") == "2.17"
     assert importlib.metadata.version("pytest-qt") == "4.5.0"
+    assert importlib.metadata.version("pymvr") == "1.0.7"
     assert sys.version_info >= (3, 11)
 
 
