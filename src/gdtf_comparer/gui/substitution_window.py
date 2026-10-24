@@ -113,6 +113,10 @@ class SubstitutionWindow(QMainWindow):
         import_row.addWidget(self.import_mvr_button)
         self.mvr_summary_label = QLabel(NO_MVR_PLACEHOLDER, tab)
         self.mvr_summary_label.setWordWrap(True)
+        # A skipped fixture type's name or a bogus GDTFSpec is shown
+        # verbatim -- it is file-supplied text and must never be
+        # interpreted as rich text (T-01-17 carried to Phase 5).
+        self.mvr_summary_label.setTextFormat(Qt.TextFormat.PlainText)
         import_row.addWidget(self.mvr_summary_label, 1)
         layout.addLayout(import_row)
 
@@ -275,6 +279,11 @@ class SubstitutionWindow(QMainWindow):
         self.mvr_summary_label.setText(import_summary_message(result))
         if self.fixture_list.count() > 0:
             self.fixture_list.setCurrentRow(0)
+        else:
+            # An MVR with no importable fixture type (SUB-01 empty edge):
+            # currentRowChanged never fires on an empty list, so the
+            # editor/buttons must be cleared explicitly here instead.
+            self._show_selected_fixture(-1)
 
     def _on_import_failed(self, message: str) -> None:
         """Clear the fixture list and show a friendly error for a failed import."""

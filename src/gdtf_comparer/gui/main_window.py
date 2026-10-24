@@ -468,6 +468,16 @@ class MainWindow(QMainWindow):
         self.substitution_window.raise_()
         self.substitution_window.activateWindow()
 
+    def is_substitution_running(self) -> bool:
+        """Return True while the Find Substitutes window has a worker running.
+
+        Mirrors is_comparison_running's shape for the app.py shutdown guard
+        (Phase 5 Task 3): False when the window was never opened, otherwise
+        delegates to SubstitutionWindow.is_busy() so this never duplicates
+        its own thread-tracking state.
+        """
+        return self.substitution_window is not None and self.substitution_window.is_busy()
+
     def select_target_file(self) -> None:
         """Open a file dialog to pick the target GDTF file."""
         path, _ = QFileDialog.getOpenFileName(
@@ -915,7 +925,14 @@ class MainWindow(QMainWindow):
         stalled network mount) cannot be interrupted from Python, so if the
         wait times out the window closes anyway and gdtf_comparer.app.main
         ends the process once the Qt event loop returns.
+
+        Closes the Find Substitutes window first, when one is open (Phase 5
+        Task 3): its own closeEvent does the same bounded wait for its
+        import/scan workers, so quitting from the main window never leaves
+        it running on its own.
         """
+        if self.substitution_window is not None:
+            self.substitution_window.close()
         if self._thread is not None:
             self._thread.quit()
             finished = self._thread.wait(CLOSE_WAIT_TIMEOUT_MS)
