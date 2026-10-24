@@ -37,7 +37,7 @@ from gdtf_comparer.core.substitution import (
     describe_requirements,
     scan_summary_message,
 )
-from gdtf_comparer.gui.candidate_results import CandidateResultsModel
+from gdtf_comparer.gui.candidate_results import LEGEND_TEXT, CandidateResultsModel
 from gdtf_comparer.gui.requirements_editor import RequirementsEditor
 from gdtf_comparer.gui.table_model import BackgroundBrushDelegate
 from gdtf_comparer.gui.worker import CandidateScanWorker, MVRImportWorker
@@ -172,6 +172,13 @@ class SubstitutionWindow(QMainWindow):
         self.check_inventory_button = QPushButton(CHECK_INVENTORY_LABEL, tab)
         self.check_inventory_button.clicked.connect(self.check_inventory)
         layout.addWidget(self.check_inventory_button)
+
+        # D-10 on screen: a legend in the user's own words, directly above
+        # the results table, so color is never the only signal.
+        self.legend_label = QLabel(LEGEND_TEXT, tab)
+        self.legend_label.setWordWrap(True)
+        self.legend_label.setTextFormat(Qt.TextFormat.PlainText)
+        layout.addWidget(self.legend_label)
 
         self.results_model = CandidateResultsModel(tab)
         self.results_view = QTableView(tab)
