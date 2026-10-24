@@ -324,6 +324,30 @@ def score_candidate(requirement_set: RequirementSet, candidate: FixtureModel) ->
     return CandidateScore(candidate=candidate, values=values, states=states)
 
 
+def rank_key(score: CandidateScore) -> tuple:
+    """Return rank()'s sort key for score (D-11, SUB-04 fairness prohibition).
+
+    Parameters:
+        score: The CandidateScore to build a sort key for.
+
+    Returns:
+        (red_count, yellow_count, file name casefold, file name, source
+        path) -- fewest reds first, then fewest yellows, then file name
+        (case-insensitive, then exact spelling, then full path) as the
+        final deterministic tie-break. No other field (manufacturer, file
+        date, folder-listing order) may ever enter this key: two shops
+        scanning the same folder on different operating systems or with
+        different file dates must always see the same order.
+    """
+    return (
+        score.red_count,
+        score.yellow_count,
+        score.candidate.file_name.casefold(),
+        score.candidate.file_name,
+        score.candidate.source_path,
+    )
+
+
 def rank(scores: Iterable[CandidateScore]) -> Tuple[CandidateScore, ...]:
     """Sort candidate scores best-first, deterministically (D-11).
 
@@ -331,22 +355,10 @@ def rank(scores: Iterable[CandidateScore]) -> Tuple[CandidateScore, ...]:
         scores: The CandidateScores to sort.
 
     Returns:
-        scores sorted by (red_count, yellow_count, file name casefold, file
-        name, source path) ascending -- fewest reds first, then fewest
-        yellows, then file name.
+        scores sorted by rank_key ascending -- fewest reds first, then
+        fewest yellows, then file name.
     """
-    return tuple(
-        sorted(
-            scores,
-            key=lambda score: (
-                score.red_count,
-                score.yellow_count,
-                score.candidate.file_name.casefold(),
-                score.candidate.file_name,
-                score.candidate.source_path,
-            ),
-        )
-    )
+    return tuple(sorted(scores, key=rank_key))
 
 
 @dataclass(frozen=True)
@@ -382,7 +394,15 @@ class CandidateScan:
 def scan_candidate_folder(
     folder: str, requirement_set: RequirementSet, repository: Optional[FixtureRepository] = None
 ) -> CandidateScan:
-    """Scan a folder of .gdtf files and rank them against requirement_set (SUB-04).
+    """Scan a folder of .gdtf files and rank them against requirement_set (SUB-04, D-12).
+
+    Looks only at folder itself, never a subfolder (a single, non-recursive
+    directory listing): "Check Inventory" scans the one folder the shop
+    pointed at. Every entry whose name ends in ".gdtf" in any letter case is kept; every
+    other entry (another extension, a subfolder, a file with no extension)
+    is ignored. Checking inventory is strictly read-only -- this function
+    never opens anything for writing, never renames and never creates
+    anything in folder (SUB-04 safety prohibition).
 
     Parameters:
         folder: Path to the folder to scan.
@@ -391,11 +411,18 @@ def scan_candidate_folder(
             to a new FixtureRepository() when None.
 
     Returns:
-        A CandidateScan with no work done (empty ranked/failures) when
-        requirement_set has no requirements. Otherwise every *.gdtf file in
-        folder (case-insensitive extension match, sorted by casefolded then
-        plain name), scored and ranked, with any file that failed to load
-        recorded as a CandidateFailure instead of stopping the whole scan.
+        A CandidateScan with no work done (empty ranked/failures, and no
+        inventory file ever opened) when requirement_set has no
+        requirements. Otherwise every *.gdtf file in folder (case-insensitive
+        extension match, sorted by casefolded then plain name -- never by
+        file date or the operating system's own listing order), scored and
+        ranked. Duplicate fixtures (byte-identical copies, or two files
+        describing the same manufacturer/model/mode) are never merged: a
+        shop can own several units of one fixture, so every readable file
+        becomes its own row. A file that failed to load (not a valid GDTF
+        archive, or not a regular file -- a folder, pipe or device named
+        *.gdtf, caught by core.hardening's regular-file check) is recorded
+        as a CandidateFailure instead of stopping the whole scan.
 
     Raises:
         CandidateFolderError: folder could not be listed.
@@ -430,6 +457,23 @@ def scan_candidate_folder(
     return CandidateScan(requirement_set, folder, rank(scores), tuple(failures))
 
 
+def _count(n: int, singular: str, plural: str) -> str:
+    """Return "{n} {singular}" or "{n} {plural}" per standard English pluralization.
+
+    A private helper, mirroring core.mvr_repository._count's shape exactly
+    -- defined separately here rather than imported, since neither module
+    exposes private helpers across module boundaries.
+    """
+    return f"{n} {singular if n == 1 else plural}"
+
+
+NO_REQUIREMENTS_MESSAGE = "This requirements file has no attributes marked important, so there is nothing to check."
+NO_GDTF_FILES_TEMPLATE = "No GDTF files were found in '{folder}'."
+NONE_READABLE_TEMPLATE = "None of the {count} GDTF files in '{folder}' could be read."
+CHECKED_TEMPLATE = "Checked {candidates} against {requirements} for '{fixture}'."
+UNREADABLE_SUFFIX_TEMPLATE = " {count} could not be read and {verb} listed at the bottom."
+
+
 def scan_summary_message(scan: CandidateScan) -> str:
     """Return a friendly one-line summary of a CandidateScan.
 
@@ -437,21 +481,32 @@ def scan_summary_message(scan: CandidateScan) -> str:
         scan: The CandidateScan to summarize.
 
     Returns:
-        A message describing how many candidates were checked against how
-        many requirements, or why nothing was checked.
+        NO_REQUIREMENTS_MESSAGE when requirement_set has no requirements
+        (SUB-02 empty edge, shop side); NO_GDTF_FILES_TEMPLATE when the
+        folder held no *.gdtf file at all (SUB-04 empty edge);
+        NONE_READABLE_TEMPLATE when every *.gdtf file found failed to load;
+        otherwise CHECKED_TEMPLATE naming how many candidates were checked
+        against how many requirements, with an UNREADABLE_SUFFIX_TEMPLATE
+        clause appended when any file failed to load (prohibition: a failed
+        file is always named, never silently dropped from the count).
     """
     if not scan.requirement_set.requirements:
-        return "This requirements file has no attributes marked important, so there is nothing to check."
+        return NO_REQUIREMENTS_MESSAGE
     if not scan.ranked and not scan.failures:
-        return f"No GDTF files were found in '{scan.folder}'."
+        return NO_GDTF_FILES_TEMPLATE.format(folder=scan.folder)
+    if not scan.ranked:
+        return NONE_READABLE_TEMPLATE.format(count=len(scan.failures), folder=scan.folder)
 
-    message = (
-        f"Checked {len(scan.ranked)} candidate(s) against "
-        f"{len(scan.requirement_set.requirements)} requirement(s) for "
-        f"'{scan.requirement_set.fixture_name}'."
+    message = CHECKED_TEMPLATE.format(
+        candidates=_count(len(scan.ranked), "candidate", "candidates"),
+        requirements=_count(len(scan.requirement_set.requirements), "requirement", "requirements"),
+        fixture=scan.requirement_set.fixture_name,
     )
     if scan.failures:
-        message += f" {len(scan.failures)} file(s) could not be read."
+        count = len(scan.failures)
+        message += UNREADABLE_SUFFIX_TEMPLATE.format(
+            count=count, verb="is" if count == 1 else "are"
+        )
     return message
 
 

@@ -1,20 +1,25 @@
 """QAbstractTableModel presenting a CandidateScan (SUB-04 -> presentation)."""
 
+import os
 from typing import Any, Dict, Optional
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QBrush, QColor
 
 from gdtf_comparer.core.models import format_value
-from gdtf_comparer.core.substitution import DIRECTION_LABELS, CandidateScan, MatchState
+from gdtf_comparer.core.substitution import DIRECTION_LABELS, CandidateFailure, CandidateScan, MatchState
 
 MATCH_STATE_ROLE = Qt.ItemDataRole.UserRole + 1
+FAILURE_ROW_ROLE = Qt.ItemDataRole.UserRole + 2
 
 COL_RANK = 0
 COL_FIXTURE = 1
 COL_FILE = 2
 COL_SUMMARY = 3
 FIRST_REQUIREMENT_COLUMN = 4
+
+FAILURE_FIXTURE_TEXT = "Couldn't read this file"
+_FAILURE_FOREGROUND = QBrush(QColor(128, 128, 128))
 
 # Fixed, theme-independent colors (Phase 5, Claude's discretion, matching
 # gui.main_window's own fixed match-indicator color posture): a traffic
@@ -56,10 +61,15 @@ class CandidateResultsModel(QAbstractTableModel):
         return self._scan
 
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        """Return the number of ranked candidates (0 for a valid parent or no scan)."""
+        """Return ranked candidates plus failure rows (0 for a valid parent or no scan).
+
+        Failure rows are appended below every ranked candidate row, at
+        indexes >= len(ranked) -- every file the shop owns stays visible in
+        one table, readable or not.
+        """
         if parent.isValid() or self._scan is None:
             return 0
-        return len(self._scan.ranked)
+        return len(self._scan.ranked) + len(self._scan.failures)
 
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
         """Return FIRST_REQUIREMENT_COLUMN (no scan) plus the requirement count."""
@@ -74,11 +84,21 @@ class CandidateResultsModel(QAbstractTableModel):
         if not index.isValid() or self._scan is None:
             return None
 
-        score = self._scan.ranked[index.row()]
+        row = index.row()
         column = index.column()
+        ranked_count = len(self._scan.ranked)
+        is_failure_row = row >= ranked_count
 
+        if role == FAILURE_ROW_ROLE:
+            return is_failure_row
+
+        if is_failure_row:
+            failure = self._scan.failures[row - ranked_count]
+            return self._failure_value(failure, role, column)
+
+        score = self._scan.ranked[row]
         if role == Qt.ItemDataRole.DisplayRole:
-            return self._display_value(score, index.row(), column)
+            return self._display_value(score, row, column)
         if role == Qt.ItemDataRole.ToolTipRole:
             return self._tooltip(score, column)
         if column >= FIRST_REQUIREMENT_COLUMN:
@@ -88,6 +108,32 @@ class CandidateResultsModel(QAbstractTableModel):
                 return state
             if role == Qt.ItemDataRole.BackgroundRole:
                 return QBrush(STATE_COLORS[state])
+        return None
+
+    def _failure_value(self, failure: CandidateFailure, role: int, column: int) -> Any:
+        """Return one failure row's data for role/column.
+
+        A failure row never answers MATCH_STATE_ROLE or BackgroundRole for
+        any column (it has no requirement cells to color) -- only
+        DisplayRole, ToolTipRole (file column only, the full path) and a
+        fixed gray ForegroundRole across every column.
+        """
+        if role == Qt.ItemDataRole.DisplayRole:
+            if column == COL_RANK:
+                return "—"
+            if column == COL_FIXTURE:
+                return FAILURE_FIXTURE_TEXT
+            if column == COL_FILE:
+                return os.path.basename(failure.path)
+            if column == COL_SUMMARY:
+                return failure.reason
+            return None
+        if role == Qt.ItemDataRole.ToolTipRole:
+            if column == COL_FILE:
+                return failure.path
+            return None
+        if role == Qt.ItemDataRole.ForegroundRole:
+            return _FAILURE_FOREGROUND
         return None
 
     def _display_value(self, score, row: int, column: int) -> Any:
