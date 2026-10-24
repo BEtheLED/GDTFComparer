@@ -180,7 +180,22 @@ Plans:
   3. User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself) and a different user, in a different session, can load that file back in.
   4. User can point the app at a local folder of candidate GDTF files they maintain and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), with candidates ranked best match first.
 
-**Plans**: TBD
+**Plans**: 5 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Tracer: blocking-human legitimacy gate for pymvr==1.0.7, then a blocking-human decision on what the shared requirements file records and how one tolerance becomes green/yellow/red (D-08 one-way, D-10), then the thin LD-to-shop round trip: hardened MVR import (generalized core/hardening.py, pymvr on validated in-memory bytes, embedded GDTFs through the existing pipeline) → one fixture-type row → mark one attribute → save a one-fixture sidecar file → a fresh Find Substitutes window opens it, scans an inventory folder and ranks green/yellow/red through BackgroundBrushDelegate (PARSE-02, SUB-01..04) (wave 1)
+
+**Wave 2** *(blocked on 05-01; the three plans share no files)*
+
+- [ ] 05-02-PLAN.md — MVR import depth: fixtures found wherever the scene nests them, accented GDTF names (cp437 recovery), missing/broken embedded GDTFs named, empty-state messages, every hostile or wrong file ends in one friendly message, one import at a time, clean shutdown with a stuck worker (PARSE-02, SUB-01) (wave 2)
+- [ ] 05-03-PLAN.md — Requirements editor depth: each fixture type keeps its own checklist (D-04), smart overridable directions (D-05), per-attribute tolerances with units (D-06), text attributes "Must match", declared-only rows, search, nothing-marked allowed (SUB-02) (wave 2)
+- [ ] 05-04-PLAN.md — Requirements file trust boundary: identical round trip in a separate process, exactly one fixture per file (D-09), strict refuse-never-coerce validation, safe read, atomic writes (SUB-03) (wave 2)
+
+**Wave 3** *(blocked on 05-02 and 05-03)*
+
+- [ ] 05-05-PLAN.md — Inventory check depth: single-folder read-only scan, duplicates kept, unreadable files listed, empty states, scoring pinned to the user's chosen rule at every edge, lights-only fair ranking, colors visible in both themes with words and a legend, one check at a time (SUB-04) (wave 3)
 
 ## Progress
 
@@ -193,4 +208,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 2/4 | In Progress | - |
-| 5. MVR Import & Fixture Substitution | 0/TBD | Not started | - |
+| 5. MVR Import & Fixture Substitution | 0/5 | Planned | - |
