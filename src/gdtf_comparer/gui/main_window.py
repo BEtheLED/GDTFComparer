@@ -47,6 +47,7 @@ from gdtf_comparer.core.profile_repository import (
     profile_name_key,
 )
 from gdtf_comparer.gui.attribute_picker import AttributePicker
+from gdtf_comparer.gui.substitution_window import SubstitutionWindow
 from gdtf_comparer.gui.table_model import (
     AttributeSelectionProxyModel,
     BackgroundBrushDelegate,
@@ -58,6 +59,15 @@ from gdtf_comparer.gui.theme import current_theme_name, diff_highlight_color, th
 from gdtf_comparer.gui.worker import ComparisonWorker
 
 GDTF_FILE_FILTER = "GDTF files (*.gdtf);;All files (*)"
+
+# Find Substitutes entry point (Phase 5, D-07): opens (or raises) a single
+# SubstitutionWindow from the main window, leaving the existing compare
+# workflow untouched apart from this one new button.
+FIND_SUBSTITUTES_LABEL = "Find Substitutes…"
+FIND_SUBSTITUTES_TOOLTIP = (
+    "Import an MVR show file, mark what matters for each fixture type, "
+    "and check a folder of GDTF files for substitutes"
+)
 
 # Status bar message shown when a comparison has rows but none of them are
 # currently checked in the Attributes panel (D-03; _show_result_status).
@@ -252,6 +262,7 @@ class MainWindow(QMainWindow):
             profile_repository if profile_repository is not None else ProfileRepository()
         )
         self._active_profile: Optional[Profile] = None
+        self.substitution_window: Optional[SubstitutionWindow] = None
 
         self.setWindowTitle("GDTF Comparer")
         # 1280x720 (up from 1000x650) keeps the table area beside the 260 px
@@ -300,6 +311,10 @@ class MainWindow(QMainWindow):
         layout.addWidget(files_group)
 
         run_row = QHBoxLayout()
+        self.substitutes_button = QPushButton(FIND_SUBSTITUTES_LABEL, central)
+        self.substitutes_button.setToolTip(FIND_SUBSTITUTES_TOOLTIP)
+        self.substitutes_button.clicked.connect(self.open_substitution_window)
+        run_row.addWidget(self.substitutes_button)
         run_row.addStretch(1)
         self.run_button = QPushButton("Run Comparison", central)
         self.run_button.clicked.connect(self.run_comparison)
@@ -444,6 +459,14 @@ class MainWindow(QMainWindow):
         (prohibition 1, 02-03-PLAN.md).
         """
         self._apply_highlight_theme(theme_for_scheme(scheme))
+
+    def open_substitution_window(self) -> None:
+        """Open (or raise) the single Find Substitutes window (D-07)."""
+        if self.substitution_window is None:
+            self.substitution_window = SubstitutionWindow(self)
+        self.substitution_window.show()
+        self.substitution_window.raise_()
+        self.substitution_window.activateWindow()
 
     def select_target_file(self) -> None:
         """Open a file dialog to pick the target GDTF file."""

@@ -1,13 +1,15 @@
-"""Shared pytest fixtures: GDTF test-file builder and offscreen Qt platform default."""
+"""Shared pytest fixtures: GDTF/MVR test-file builders and offscreen Qt platform default."""
 
+import itertools
 import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+import io
 import zipfile
 from pathlib import Path
-from typing import Mapping, Optional
-from xml.sax.saxutils import quoteattr
+from typing import Mapping, Optional, Sequence, Tuple, Union
+from xml.sax.saxutils import escape, quoteattr
 
 import pytest
 
@@ -145,6 +147,159 @@ def make_gdtf(tmp_path):
         with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
             if include_description:
                 zf.writestr("description.xml", description_content)
+            for member_name, member_bytes in (extra_members or {}).items():
+                zf.writestr(member_name, member_bytes)
+
+        return archive_path
+
+    return _make
+
+
+def build_gdtf_bytes(
+    *,
+    name: str = "Test Fixture",
+    manufacturer: str = "Test Co",
+    weight: Optional[float] = 10.0,
+    models_xml: str = "",
+    geometries_xml: str = "",
+    attributes_xml: str = "",
+) -> bytes:
+    """Build a minimal .gdtf archive entirely in memory, as bytes.
+
+    Parameters mirror make_gdtf's defaults -- this is its byte-producing
+    sibling, for embedding a GDTF as an MVR zip member (never written to
+    disk as its own file).
+
+    Returns:
+        A ZIP_DEFLATED archive's raw bytes, containing one description.xml
+        member built by build_description_xml.
+    """
+    description_content = build_description_xml(
+        name=name,
+        manufacturer=manufacturer,
+        weight=weight,
+        models_xml=models_xml,
+        geometries_xml=geometries_xml,
+        attributes_xml=attributes_xml,
+    ).encode("utf-8")
+
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("description.xml", description_content)
+    return buffer.getvalue()
+
+
+_fixture_uuid_counter = itertools.count(1)
+
+
+def _deterministic_uuid() -> str:
+    """Return a deterministic, valid-looking UUID string for test MVR nodes."""
+    return f"00000000-0000-4000-8000-{next(_fixture_uuid_counter):012d}"
+
+
+def fixture_xml(name: str, gdtf_spec: Optional[str], *, child_list_xml: str = "") -> str:
+    """Build a raw <Fixture> element for embedding in test MVR scene XML.
+
+    Parameters:
+        name: The Fixture's name attribute.
+        gdtf_spec: Text for a <GDTFSpec> child element, or None to omit it
+            entirely (a fixture with no GDTF reference).
+        child_list_xml: Raw XML for a nested <ChildList>, included only when
+            non-empty (for a fixture that itself contains nested fixtures).
+
+    Returns:
+        A <Fixture name=... uuid=...> element as a raw XML string.
+    """
+    name_attr = quoteattr(name)
+    uuid_attr = quoteattr(_deterministic_uuid())
+
+    gdtf_spec_xml = ""
+    if gdtf_spec is not None:
+        gdtf_spec_xml = f"<GDTFSpec>{escape(gdtf_spec)}</GDTFSpec>"
+
+    child_list = f"<ChildList>{child_list_xml}</ChildList>" if child_list_xml else ""
+
+    return f"<Fixture name={name_attr} uuid={uuid_attr}>{gdtf_spec_xml}{child_list}</Fixture>"
+
+
+def build_scene_xml(layers_xml: str) -> str:
+    """Build a full GeneralSceneDescription.xml document around raw layers XML.
+
+    Parameters:
+        layers_xml: Raw XML inserted verbatim inside <Layers>.
+
+    Returns:
+        A UTF-8 XML document string representing a minimal, valid MVR scene.
+    """
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        '<GeneralSceneDescription verMajor="1" verMinor="6" provider="tests" providerVersion="1">'
+        f"<Scene><Layers>{layers_xml}</Layers></Scene>"
+        "</GeneralSceneDescription>\n"
+    )
+
+
+@pytest.fixture
+def make_mvr(tmp_path):
+    """Factory fixture that writes .mvr (zip) archives for tests.
+
+    Returns:
+        A callable ``_make(filename, **kwargs) -> Path`` that writes
+        ``tmp_path/filename`` as a ZIP_DEFLATED archive containing a
+        GeneralSceneDescription.xml member (or the caller's override) plus
+        any extra members, and returns the written path.
+    """
+
+    def _make(
+        filename: str,
+        *,
+        fixtures: Sequence[Tuple[str, Optional[str]]] = (),
+        layers_xml: Optional[str] = None,
+        gdtf_members: Optional[Mapping[str, bytes]] = None,
+        scene_xml: Optional[Union[str, bytes]] = None,
+        include_scene: bool = True,
+        extra_members: Optional[Mapping[str, bytes]] = None,
+    ) -> Path:
+        """Write a .mvr archive and return its path.
+
+        Parameters:
+            filename: Name of the archive to create under tmp_path.
+            fixtures: (name, gdtf_spec) pairs placed directly in one
+                `<Layer name="Layer 1" uuid=...><ChildList>...</ChildList></Layer>`.
+                Ignored when layers_xml or scene_xml is given.
+            layers_xml: Raw <Layers> inner XML, replacing the single-layer
+                default built from fixtures -- for nested-GroupObject cases.
+                Ignored when scene_xml is given.
+            gdtf_members: Embedded GDTF zip members (member name -> bytes),
+                typically from build_gdtf_bytes.
+            scene_xml: Explicit GeneralSceneDescription.xml content (str or
+                bytes). When provided, overrides the generated document
+                entirely (and fixtures/layers_xml are ignored).
+            include_scene: When False, no GeneralSceneDescription.xml member
+                is written at all (used to test missing-file error paths).
+            extra_members: Additional zip members (name -> bytes) to write.
+
+        Returns:
+            Path to the written .mvr archive.
+        """
+        archive_path = tmp_path / filename
+
+        if scene_xml is not None:
+            scene_content = scene_xml.encode("utf-8") if isinstance(scene_xml, str) else scene_xml
+        else:
+            if layers_xml is not None:
+                resolved_layers_xml = layers_xml
+            else:
+                layer_uuid = quoteattr(_deterministic_uuid())
+                child_list = "".join(fixture_xml(name, spec) for name, spec in fixtures)
+                resolved_layers_xml = f'<Layer name="Layer 1" uuid={layer_uuid}><ChildList>{child_list}</ChildList></Layer>'
+            scene_content = build_scene_xml(resolved_layers_xml).encode("utf-8")
+
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zf:
+            if include_scene:
+                zf.writestr("GeneralSceneDescription.xml", scene_content)
+            for member_name, member_bytes in (gdtf_members or {}).items():
+                zf.writestr(member_name, member_bytes)
             for member_name, member_bytes in (extra_members or {}).items():
                 zf.writestr(member_name, member_bytes)
 

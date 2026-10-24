@@ -13,6 +13,7 @@ dependencies = [
     "pygdtf==1.4.5",
     "defusedxml==0.7.1",
     "qt-material==2.17",
+    "pymvr==1.0.7",
 ]
 
 [project.optional-dependencies]

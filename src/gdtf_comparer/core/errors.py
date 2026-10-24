@@ -3,7 +3,10 @@
 GDTFError.user_message names the failing file and a lowercase reason
 fragment only -- never a traceback or exception repr (T-01-17) -- so it is
 always safe to show directly in a GUI dialog. This module also holds the
-compare-profile errors (ATTR-03) raised by core.profile_repository.
+compare-profile errors (ATTR-03) raised by core.profile_repository, the MVR
+import errors (PARSE-02) raised by core.mvr_repository, and the
+fixture-substitution errors (SUB-01..04) raised by core.substitution and
+core.requirements_repository.
 """
 
 import os
@@ -49,6 +52,22 @@ class GDTFParseError(GDTFError):
     """pygdtf itself failed to parse an already-validated file."""
 
 
+class MVRError(GDTFError):
+    """An MVR show file could not be imported (PARSE-02); same path + reason + user_message shape as GDTFError."""
+
+
+class MVRValidationError(MVRError):
+    """The file is not a readable, valid MVR archive."""
+
+
+class MVRUnsafeFileError(MVRValidationError):
+    """The file was rejected by a safety limit (size, ratio, XXE)."""
+
+
+class MVRParseError(MVRError):
+    """pymvr itself failed to parse an already-validated file."""
+
+
 class ProfileError(Exception):
     """Base error for compare-profile persistence failures (ATTR-03).
 
@@ -79,3 +98,31 @@ class ProfileNotFoundError(ProfileError):
 
 class ProfileStorageError(ProfileError):
     """profiles.json could not be read, is damaged or too new, or could not be written."""
+
+
+class SubstitutionError(Exception):
+    """Base error for fixture-substitution failures (SUB-01..04).
+
+    Shaped exactly like ProfileError: there is no single failing file path
+    to name for a requirements-file or inventory-folder failure, so this is
+    constructed directly with a friendly, complete message string.
+
+    Parameters:
+        message: The friendly, user-facing message, safe to show directly in
+            a GUI dialog (no tracebacks, no exception reprs).
+    """
+
+    def __init__(self, message: str) -> None:
+        self.user_message = message
+        super().__init__(message)
+
+    def __str__(self) -> str:
+        return self.user_message
+
+
+class RequirementsFileError(SubstitutionError):
+    """A requirements file could not be read, is damaged or too new, or could not be written."""
+
+
+class CandidateFolderError(SubstitutionError):
+    """The inventory folder could not be listed."""

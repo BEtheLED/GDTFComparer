@@ -24,6 +24,11 @@ APPROVED_CORE_SURFACE = {
     # Phase 3 compare-profile store (ATTR-03): a GUI-facing core service,
     # the same way gui/ already calls core.comparator directly.
     "gdtf_comparer.core.profile_repository",
+    # Phase 5 GUI-facing core services for MVR import and fixture
+    # substitution (PARSE-02, SUB-01..04).
+    "gdtf_comparer.core.mvr_repository",
+    "gdtf_comparer.core.substitution",
+    "gdtf_comparer.core.requirements_repository",
 }
 
 NETWORK_MODULE_TOP_LEVELS = {
@@ -40,7 +45,9 @@ NETWORK_MODULE_TOP_LEVELS = {
     "zeroconf",
 }
 
-PARSING_LIBRARY_TOP_LEVELS = {"pygdtf", "zipfile", "defusedxml", "xml"}
+# "pymvr" added Phase 5 (PARSE-02): gui/ reaches MVR data only through
+# core.mvr_repository, never pymvr directly.
+PARSING_LIBRARY_TOP_LEVELS = {"pygdtf", "zipfile", "defusedxml", "xml", "pymvr"}
 
 QT_TOP_LEVELS = {"PySide6", "shiboken6", "qt_material"}
 
