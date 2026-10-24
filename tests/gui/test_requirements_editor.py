@@ -7,10 +7,13 @@ attribute (D-05, D-06), honest text-attribute handling, declared-only rows,
 and a search box that only narrows visibility.
 """
 
+import json
+
 from PySide6.QtCore import Qt
 
 from gdtf_comparer.core.models import CATEGORY_PHYSICAL, CATEGORY_BEAM, AttributeKey
-from gdtf_comparer.core.substitution import Direction
+from gdtf_comparer.core.requirements_repository import save_requirements
+from gdtf_comparer.core.substitution import TOLERANCE_KIND, Direction
 from gdtf_comparer.gui.requirements_editor import VALUE_ROLE
 from gdtf_comparer.gui.substitution_window import SubstitutionWindow
 
@@ -25,7 +28,10 @@ _PAN_XML = '<Attribute Name="Pan" Pretty="P" ActivationGroup="PanTilt" Feature="
 
 WEIGHT_KEY = AttributeKey(CATEGORY_PHYSICAL, "", "Weight")
 BEAM_ANGLE_KEY = AttributeKey(CATEGORY_BEAM, "Beam 1", "BeamAngle")
+LUMINOUS_FLUX_KEY = AttributeKey(CATEGORY_BEAM, "Beam 1", "LuminousFlux")
+BEAM_TYPE_KEY = AttributeKey(CATEGORY_BEAM, "Beam 1", "BeamType")
 PAN_PRETTY_KEY = AttributeKey("DMX: Position", "Pretty", "Pan")
+PAN_PHYSICAL_UNIT_KEY = AttributeKey("DMX: Position", "PhysicalUnit", "Pan")
 
 
 def _two_type_mvr(make_mvr):
@@ -165,3 +171,107 @@ def test_remembered_direction_survives_switching(qtbot, make_mvr, monkeypatch):
     window.fixture_list.setCurrentRow(0)
 
     assert editor.direction_combo(WEIGHT_KEY).currentData() == Direction.HIGHER.value
+
+
+def test_defaults_shown_and_overridable(qtbot, make_mvr, monkeypatch, tmp_path):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    editor.leaf_item(WEIGHT_KEY).setCheckState(0, Qt.CheckState.Checked)
+    assert editor.direction_combo(WEIGHT_KEY).currentData() == "lower"
+
+    editor.leaf_item(LUMINOUS_FLUX_KEY).setCheckState(0, Qt.CheckState.Checked)
+    assert editor.direction_combo(LUMINOUS_FLUX_KEY).currentData() == "higher"
+
+    editor.leaf_item(BEAM_ANGLE_KEY).setCheckState(0, Qt.CheckState.Checked)
+    assert editor.direction_combo(BEAM_ANGLE_KEY).currentData() == "closest"
+
+    weight_combo = editor.direction_combo(WEIGHT_KEY)
+    weight_combo.setCurrentIndex(weight_combo.findData("higher"))
+
+    save_path = tmp_path / "reqs.json"
+    save_requirements(str(save_path), editor.requirement_set())
+    payload = json.loads(save_path.read_text())
+    weight_entry = next(entry for entry in payload["requirements"] if entry["attribute"] == "Weight")
+    assert weight_entry["direction"] == "higher"
+
+
+def test_each_attribute_keeps_its_own_tolerance(qtbot, make_mvr, monkeypatch, tmp_path):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    editor.leaf_item(WEIGHT_KEY).setCheckState(0, Qt.CheckState.Checked)
+    editor.tolerance_spin(WEIGHT_KEY).setValue(2.0)
+    editor.leaf_item(BEAM_ANGLE_KEY).setCheckState(0, Qt.CheckState.Checked)
+    editor.tolerance_spin(BEAM_ANGLE_KEY).setValue(5.0)
+
+    save_path = tmp_path / "reqs.json"
+    save_requirements(str(save_path), editor.requirement_set())
+    payload = json.loads(save_path.read_text())
+    tolerances = {entry["attribute"]: entry["tolerance"] for entry in payload["requirements"]}
+    assert tolerances["Weight"] == 2.0
+    assert tolerances["BeamAngle"] == 5.0
+
+
+def test_units_shown(qtbot, make_mvr, monkeypatch):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    assert editor.leaf_item(WEIGHT_KEY).text(1) == "15 kg"
+    assert editor.leaf_item(BEAM_ANGLE_KEY).text(1) == "20 °"
+
+    editor.leaf_item(WEIGHT_KEY).setCheckState(0, Qt.CheckState.Checked)
+    editor.leaf_item(BEAM_ANGLE_KEY).setCheckState(0, Qt.CheckState.Checked)
+
+    if TOLERANCE_KIND == "percent":
+        assert editor.tolerance_spin(WEIGHT_KEY).suffix() == " %"
+        assert editor.tolerance_spin(BEAM_ANGLE_KEY).suffix() == " %"
+    else:
+        assert editor.tolerance_spin(WEIGHT_KEY).suffix() == " kg"
+        assert editor.tolerance_spin(BEAM_ANGLE_KEY).suffix() == " °"
+
+
+def test_text_attribute_must_match(qtbot, make_mvr, monkeypatch, tmp_path):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    for key in (BEAM_TYPE_KEY, PAN_PHYSICAL_UNIT_KEY):
+        leaf = editor.leaf_item(key)
+        assert leaf is not None
+        leaf.setCheckState(0, Qt.CheckState.Checked)
+
+        combo = editor.direction_combo(key)
+        assert combo.count() == 1
+        assert combo.currentText() == "Must match"
+        assert combo.isEnabled() is False
+
+        spin = editor.tolerance_spin(key)
+        assert spin.isEnabled() is False
+        assert spin.text() == "—"
+
+    save_path = tmp_path / "reqs.json"
+    save_requirements(str(save_path), editor.requirement_set())
+    payload = json.loads(save_path.read_text())
+
+    beam_entry = next(entry for entry in payload["requirements"] if entry["attribute"] == "BeamType")
+    pan_entry = next(
+        entry
+        for entry in payload["requirements"]
+        if entry["attribute"] == "Pan" and entry["element"] == "PhysicalUnit"
+    )
+    assert beam_entry["direction"] == "exact"
+    assert beam_entry["tolerance"] == 0.0
+    assert pan_entry["direction"] == "exact"
+    assert pan_entry["tolerance"] == 0.0

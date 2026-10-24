@@ -32,6 +32,7 @@ from gdtf_comparer.core.substitution import (
     DIRECTION_LABELS,
     Requirement,
     RequirementSet,
+    attribute_unit,
     default_direction,
     default_tolerance,
     requirement_options,
@@ -49,6 +50,7 @@ COL_TOLERANCE = 3
 
 _EMPTY_LABEL_TEXT = "Pick a fixture type on the left to mark what matters."
 _EXACT_DIRECTION_LABEL = "Must match"
+NO_TOLERANCE_TEXT = "—"
 
 
 class RequirementsEditor(QWidget):
@@ -128,7 +130,9 @@ class RequirementsEditor(QWidget):
                 else:
                     label = f"{attribute_key.attribute} ({attribute_key.element_label})"
 
-                leaf_item = QTreeWidgetItem(section_item, [label, format_value(value)])
+                unit = attribute_unit(attribute_key)
+                value_text = f"{format_value(value)} {unit}" if unit else format_value(value)
+                leaf_item = QTreeWidgetItem(section_item, [label, value_text])
                 leaf_item.setFlags(
                     Qt.ItemFlag.ItemIsEnabled
                     | Qt.ItemFlag.ItemIsUserCheckable
@@ -286,8 +290,15 @@ class RequirementsEditor(QWidget):
         self._emit_timer.start()
 
     def _install_leaf_widgets(self, leaf: QTreeWidgetItem) -> None:
-        """Create and install the direction combo + tolerance spin for a checked leaf."""
+        """Create and install the direction combo + tolerance spin for a checked leaf.
+
+        A text attribute (Direction.EXACT) only ever offers "Must match": a
+        single, disabled combo entry and a disabled, "—"-reading tolerance
+        box (RESEARCH Pitfall 5) -- there is nothing for the LD to choose.
+        """
         direction = Direction(leaf.data(COL_ATTRIBUTE, DIRECTION_ROLE))
+        attribute_key = leaf.data(COL_ATTRIBUTE, KEY_ROLE)
+        unit = attribute_unit(attribute_key)
 
         combo = QComboBox(self.tree)
         if direction == Direction.EXACT:
@@ -303,11 +314,16 @@ class RequirementsEditor(QWidget):
 
         spin = QDoubleSpinBox(self.tree)
         spin.setDecimals(3)
-        if TOLERANCE_KIND == "percent":
+        if direction == Direction.EXACT:
+            spin.setRange(0, 0)
+            spin.setSpecialValueText(NO_TOLERANCE_TEXT)
+        elif TOLERANCE_KIND == "percent":
             spin.setRange(0, 1000)
             spin.setSuffix(" %")
         else:
             spin.setRange(0, 1e9)
+            if unit:
+                spin.setSuffix(f" {unit}")
         spin.setValue(float(leaf.data(COL_ATTRIBUTE, TOLERANCE_ROLE)))
         spin.setEnabled(direction != Direction.EXACT)
         spin.valueChanged.connect(lambda _value, leaf=leaf, spin=spin: self._on_tolerance_changed(leaf, spin))
