@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QLabel,
+    QLineEdit,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -51,6 +52,8 @@ COL_TOLERANCE = 3
 _EMPTY_LABEL_TEXT = "Pick a fixture type on the left to mark what matters."
 _EXACT_DIRECTION_LABEL = "Must match"
 NO_TOLERANCE_TEXT = "—"
+EDITOR_SEARCH_PLACEHOLDER = "Search attributes…"
+NOTHING_MARKED_TEXT = "Nothing marked yet — tick the attributes that matter for this fixture."
 
 
 class RequirementsEditor(QWidget):
@@ -73,6 +76,17 @@ class RequirementsEditor(QWidget):
         self.empty_label = QLabel(_EMPTY_LABEL_TEXT, self)
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
+
+        self.search_edit = QLineEdit(self)
+        self.search_edit.setPlaceholderText(EDITOR_SEARCH_PLACEHOLDER)
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.textChanged.connect(self._apply_search)
+        layout.addWidget(self.search_edit)
+
+        self.nothing_marked_label = QLabel(NOTHING_MARKED_TEXT, self)
+        self.nothing_marked_label.setWordWrap(True)
+        self.nothing_marked_label.setVisible(False)
+        layout.addWidget(self.nothing_marked_label)
 
         self.tree = QTreeWidget(self)
         self.tree.setColumnCount(4)
@@ -171,6 +185,10 @@ class RequirementsEditor(QWidget):
             self._install_leaf_widgets(leaf_item)
 
         self.empty_label.setVisible(False)
+        # An active search survives switching fixture types (D-03 mirror),
+        # and the nothing-marked hint reflects the newly-shown fixture.
+        self._apply_search()
+        self._update_nothing_marked()
 
     def clear(self) -> None:
         """Empty the tree, forget every remembered checklist and show the empty-state label.
@@ -190,6 +208,7 @@ class RequirementsEditor(QWidget):
         self._fixture = None
         self._remembered = {}
         self.empty_label.setVisible(True)
+        self.nothing_marked_label.setVisible(False)
 
     def _capture_current(self) -> None:
         """Save the currently shown fixture's leaf states into self._remembered.
@@ -287,6 +306,7 @@ class RequirementsEditor(QWidget):
             self.tree.removeItemWidget(item, COL_DIRECTION)
             self.tree.removeItemWidget(item, COL_TOLERANCE)
 
+        self._update_nothing_marked()
         self._emit_timer.start()
 
     def _install_leaf_widgets(self, leaf: QTreeWidgetItem) -> None:
@@ -338,3 +358,60 @@ class RequirementsEditor(QWidget):
         """Write a leaf's new tolerance value back onto its role and re-emit."""
         leaf.setData(COL_ATTRIBUTE, TOLERANCE_ROLE, spin.value())
         self._emit_timer.start()
+
+    def _apply_search(self, text: Optional[str] = None) -> None:
+        """Show/hide tree items to match the search box (D-03 mirror: visibility only).
+
+        Parameters:
+            text: The search text to apply, or None to read
+                self.search_edit.text() directly (the textChanged-connected
+                case, and the internal call at the end of show_fixture so an
+                active search survives switching fixture types).
+
+        Never changes a check state, never touches a role and never starts
+        the coalescing emit timer -- this method only ever calls
+        setHidden()/setExpanded() on tree items, mirroring
+        gui.attribute_picker.AttributePicker._apply_search exactly. A leaf
+        hidden by a search is still saved when ticked (requirement_set()
+        walks the tree, not visibility).
+        """
+        query = (text if text is not None else self.search_edit.text()).strip().casefold()
+
+        root = self.tree.invisibleRootItem()
+        for section_index in range(root.childCount()):
+            section = root.child(section_index)
+            section_text = section.text(COL_ATTRIBUTE).casefold()
+            section_matches = not query or query in section_text
+            any_visible_leaf = False
+
+            for leaf_index in range(section.childCount()):
+                leaf = section.child(leaf_index)
+                leaf_matches = (
+                    section_matches or not query or query in leaf.text(COL_ATTRIBUTE).casefold()
+                )
+                leaf.setHidden(not leaf_matches)
+                any_visible_leaf = any_visible_leaf or leaf_matches
+
+            section.setHidden(not any_visible_leaf)
+            if any_visible_leaf and query:
+                section.setExpanded(True)
+
+    def _update_nothing_marked(self) -> None:
+        """Show nothing_marked_label exactly when a fixture is shown and nothing is ticked."""
+        if self._fixture is None:
+            self.nothing_marked_label.setVisible(False)
+            return
+
+        root = self.tree.invisibleRootItem()
+        has_checked_leaf = False
+        for section_index in range(root.childCount()):
+            section = root.child(section_index)
+            for leaf_index in range(section.childCount()):
+                leaf = section.child(leaf_index)
+                if leaf.checkState(COL_ATTRIBUTE) == Qt.CheckState.Checked:
+                    has_checked_leaf = True
+                    break
+            if has_checked_leaf:
+                break
+
+        self.nothing_marked_label.setVisible(not has_checked_leaf)

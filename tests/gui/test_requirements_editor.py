@@ -14,7 +14,7 @@ from PySide6.QtCore import Qt
 from gdtf_comparer.core.models import CATEGORY_PHYSICAL, CATEGORY_BEAM, AttributeKey
 from gdtf_comparer.core.requirements_repository import save_requirements
 from gdtf_comparer.core.substitution import TOLERANCE_KIND, Direction
-from gdtf_comparer.gui.requirements_editor import VALUE_ROLE
+from gdtf_comparer.gui.requirements_editor import COL_DIRECTION, COL_TOLERANCE, VALUE_ROLE
 from gdtf_comparer.gui.substitution_window import SubstitutionWindow
 
 from tests.conftest import build_gdtf_bytes
@@ -275,3 +275,103 @@ def test_text_attribute_must_match(qtbot, make_mvr, monkeypatch, tmp_path):
     assert beam_entry["tolerance"] == 0.0
     assert pan_entry["direction"] == "exact"
     assert pan_entry["tolerance"] == 0.0
+
+
+def test_undeclared_attributes_never_listed(qtbot, make_mvr, make_gdtf, monkeypatch):
+    """P4, RESEARCH Pitfall 6: a fixture declaring only BeamAngle offers exactly one row."""
+    sparse_bytes = build_gdtf_bytes(
+        name="Sparse Spot", manufacturer="Sparse Co", weight=None,
+        geometries_xml='<Geometry Name="Head"><Beam Name="Beam" BeamAngle="20"/></Geometry>',
+    )
+    mvr_path = make_mvr(
+        "sparse.mvr",
+        fixtures=[("S1", "Sparse@Spot.gdtf")],
+        gdtf_members={"Sparse@Spot.gdtf": sparse_bytes},
+    )
+
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch, expected_count=1)
+
+    editor = window.requirements_editor
+    root = editor.tree.invisibleRootItem()
+    leaf_count = sum(root.child(i).childCount() for i in range(root.childCount()))
+    assert leaf_count == 1
+    assert editor.leaf_item(BEAM_ANGLE_KEY) is not None
+
+
+def test_search_narrows_visibility_only(qtbot, make_mvr, monkeypatch):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    weight_leaf = editor.leaf_item(WEIGHT_KEY)
+    weight_leaf.setCheckState(0, Qt.CheckState.Checked)
+
+    editor.search_edit.setText("beam")
+
+    assert weight_leaf.isHidden() is True
+    assert weight_leaf.checkState(0) == Qt.CheckState.Checked
+    beam_leaf = editor.leaf_item(BEAM_ANGLE_KEY)
+    assert beam_leaf.isHidden() is False
+
+    requirement_set = editor.requirement_set()
+    assert any(requirement.key == WEIGHT_KEY for requirement in requirement_set.requirements)
+
+    editor.search_edit.setText("")
+
+    assert weight_leaf.isHidden() is False
+    assert beam_leaf.isHidden() is False
+    assert weight_leaf.checkState(0) == Qt.CheckState.Checked
+
+
+def test_nothing_marked_is_allowed(qtbot, make_mvr, monkeypatch, tmp_path):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    window.show()
+    qtbot.waitExposed(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    assert editor.nothing_marked_label.isVisible() is True
+    assert editor.nothing_marked_label.text() == (
+        "Nothing marked yet — tick the attributes that matter for this fixture."
+    )
+
+    requirement_set = editor.requirement_set()
+    assert requirement_set.requirements == ()
+
+    save_path = tmp_path / "reqs.json"
+    save_requirements(str(save_path), requirement_set)
+    payload = json.loads(save_path.read_text())
+    assert payload["requirements"] == []
+
+    editor.leaf_item(WEIGHT_KEY).setCheckState(0, Qt.CheckState.Checked)
+    assert editor.nothing_marked_label.isVisible() is False
+
+
+def test_widgets_exist_only_for_ticked_rows(qtbot, make_mvr, monkeypatch):
+    mvr_path = _two_type_mvr(make_mvr)
+    window = SubstitutionWindow()
+    qtbot.addWidget(window)
+    _open_mvr(qtbot, window, mvr_path, monkeypatch)
+    editor = window.requirements_editor
+
+    root = editor.tree.invisibleRootItem()
+    all_leaves = [
+        root.child(section_index).child(leaf_index)
+        for section_index in range(root.childCount())
+        for leaf_index in range(root.child(section_index).childCount())
+    ]
+    assert len(all_leaves) > 1
+    for leaf in all_leaves:
+        assert editor.tree.itemWidget(leaf, COL_DIRECTION) is None
+        assert editor.tree.itemWidget(leaf, COL_TOLERANCE) is None
+
+    editor.leaf_item(WEIGHT_KEY).setCheckState(0, Qt.CheckState.Checked)
+
+    combo_count = sum(1 for leaf in all_leaves if editor.tree.itemWidget(leaf, COL_DIRECTION) is not None)
+    assert combo_count == 1

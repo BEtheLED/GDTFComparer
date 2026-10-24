@@ -9,12 +9,14 @@ file actually declares can ever become a markable row (RESEARCH Pitfall 6).
 import pytest
 
 from gdtf_comparer.core.models import CATEGORY_BEAM, CATEGORY_PHYSICAL, AttributeKey
+from gdtf_comparer.core.repository import FixtureRepository
 from gdtf_comparer.core.substitution import (
     TOLERANCE_KIND,
     Direction,
     attribute_unit,
     default_direction,
     default_tolerance,
+    requirement_options,
 )
 
 
@@ -62,3 +64,27 @@ def test_attribute_unit():
     assert attribute_unit(AttributeKey(CATEGORY_BEAM, "Beam 1", "PowerConsumption")) == "W"
     assert attribute_unit(AttributeKey("DMX: Position", "SomeProperty", "Weight")) == ""
     assert attribute_unit(AttributeKey(CATEGORY_BEAM, "Beam 1", "SomeUnknownAttribute")) == ""
+
+
+def test_only_declared_values_are_options(make_gdtf):
+    """RESEARCH Pitfall 6 / P4: pygdtf's spec-default backfill never becomes an option.
+
+    The fixture declares only BeamAngle and omits Weight entirely; pygdtf
+    still backfills PowerConsumption=1000, LuminousFlux=10000,
+    ColorTemperature=6000, FieldAngle=25, BeamType=Wash and Weight=0 into
+    its object model, none of which may surface as a markable requirement.
+    """
+    path = make_gdtf(
+        "sparse.gdtf",
+        weight=None,
+        geometries_xml='<Geometry Name="Head"><Beam Name="Beam" BeamAngle="20"/></Geometry>',
+    )
+    fixture = FixtureRepository().load(str(path))
+
+    options = requirement_options(fixture)
+    keys = [key for key, _ in options]
+
+    assert keys == [AttributeKey(CATEGORY_BEAM, "Beam 1", "BeamAngle")]
+    values = [value for _, value in options]
+    assert 1000.0 not in values
+    assert 10000.0 not in values
