@@ -3,15 +3,22 @@
 Shows one checkbox per eligible attribute of a shown fixture type; checking
 one reveals a direction dropdown and a tolerance spinner, mirroring
 gui.attribute_picker's checkable-tree shape and coalescing-emit pattern.
+
+Each fixture type keeps its own independent checklist (D-04): switching away
+from a fixture type and back restores exactly what was checked, with its
+direction and tolerance, via self._remembered -- keyed by the GDTF file name
+(gdtf_spec) the window passes into show_fixture. clear() empties this memory,
+so importing a different MVR always starts every fixture type fresh.
 """
 
-from typing import Optional
+from typing import Dict, Optional, Tuple
 
 from PySide6.QtCore import QTimer, Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QLabel,
+    QLineEdit,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -26,6 +33,7 @@ from gdtf_comparer.core.substitution import (
     DIRECTION_LABELS,
     Requirement,
     RequirementSet,
+    attribute_unit,
     default_direction,
     default_tolerance,
     requirement_options,
@@ -43,6 +51,9 @@ COL_TOLERANCE = 3
 
 _EMPTY_LABEL_TEXT = "Pick a fixture type on the left to mark what matters."
 _EXACT_DIRECTION_LABEL = "Must match"
+NO_TOLERANCE_TEXT = "—"
+EDITOR_SEARCH_PLACEHOLDER = "Search attributes…"
+NOTHING_MARKED_TEXT = "Nothing marked yet — tick the attributes that matter for this fixture."
 
 
 class RequirementsEditor(QWidget):
@@ -66,6 +77,17 @@ class RequirementsEditor(QWidget):
         self.empty_label.setWordWrap(True)
         layout.addWidget(self.empty_label)
 
+        self.search_edit = QLineEdit(self)
+        self.search_edit.setPlaceholderText(EDITOR_SEARCH_PLACEHOLDER)
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.textChanged.connect(self._apply_search)
+        layout.addWidget(self.search_edit)
+
+        self.nothing_marked_label = QLabel(NOTHING_MARKED_TEXT, self)
+        self.nothing_marked_label.setWordWrap(True)
+        self.nothing_marked_label.setVisible(False)
+        layout.addWidget(self.nothing_marked_label)
+
         self.tree = QTreeWidget(self)
         self.tree.setColumnCount(4)
         self.tree.setHeaderLabels(["Attribute", "Your fixture", "Direction", "Tolerance"])
@@ -75,6 +97,10 @@ class RequirementsEditor(QWidget):
         self._rebuilding = False
         self._gdtf_spec: Optional[str] = None
         self._fixture: Optional[FixtureModel] = None
+        # D-04: one entry per fixture type (gdtf_spec) ever shown this
+        # session, holding every leaf's (checked, direction, tolerance) at
+        # the moment it was last hidden by a rebuild. Emptied by clear().
+        self._remembered: Dict[str, Dict[AttributeKey, Tuple[bool, str, float]]] = {}
 
         self._emit_timer = QTimer(self)
         self._emit_timer.setSingleShot(True)
@@ -88,11 +114,17 @@ class RequirementsEditor(QWidget):
 
         Parameters:
             key: The fixture type's gdtf_spec (MVR zip member name) -- saved
-                into the eventual RequirementSet.gdtf_file.
+                into the eventual RequirementSet.gdtf_file, and the key
+                self._remembered restores this fixture type's checklist by
+                (D-04).
             fixture: The FixtureModel whose eligible attributes to show.
         """
+        self._capture_current()
+
         self._gdtf_spec = key
         self._fixture = fixture
+        remembered_for_key = self._remembered.get(key, {})
+        restored_leaves = []
 
         self._rebuilding = True
         self.tree.blockSignals(True)
@@ -112,7 +144,9 @@ class RequirementsEditor(QWidget):
                 else:
                     label = f"{attribute_key.attribute} ({attribute_key.element_label})"
 
-                leaf_item = QTreeWidgetItem(section_item, [label, format_value(value)])
+                unit = attribute_unit(attribute_key)
+                value_text = f"{format_value(value)} {unit}" if unit else format_value(value)
+                leaf_item = QTreeWidgetItem(section_item, [label, value_text])
                 leaf_item.setFlags(
                     Qt.ItemFlag.ItemIsEnabled
                     | Qt.ItemFlag.ItemIsUserCheckable
@@ -121,21 +155,48 @@ class RequirementsEditor(QWidget):
                 leaf_item.setData(COL_ATTRIBUTE, KEY_ROLE, attribute_key)
                 leaf_item.setData(COL_ATTRIBUTE, VALUE_ROLE, value)
                 direction = default_direction(attribute_key, value)
-                leaf_item.setData(COL_ATTRIBUTE, DIRECTION_ROLE, direction.value)
-                leaf_item.setData(
-                    COL_ATTRIBUTE, TOLERANCE_ROLE, default_tolerance(attribute_key, value, direction)
+                tolerance = default_tolerance(attribute_key, value, direction)
+
+                remembered = remembered_for_key.get(attribute_key)
+                checked = False
+                if remembered is not None:
+                    checked, direction_value, tolerance = remembered
+                else:
+                    direction_value = direction.value
+
+                leaf_item.setData(COL_ATTRIBUTE, DIRECTION_ROLE, direction_value)
+                leaf_item.setData(COL_ATTRIBUTE, TOLERANCE_ROLE, tolerance)
+                leaf_item.setCheckState(
+                    COL_ATTRIBUTE, Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
                 )
-                leaf_item.setCheckState(COL_ATTRIBUTE, Qt.CheckState.Unchecked)
+                if checked:
+                    restored_leaves.append(leaf_item)
 
             self.tree.expandAll()
         finally:
             self.tree.blockSignals(False)
             self._rebuilding = False
 
+        # Restored leaves need their direction/tolerance widgets created the
+        # same way a manual tick does (_on_item_changed), but blockSignals
+        # above suppressed that signal -- so it is done explicitly here,
+        # outside the signal block, through the same helper.
+        for leaf_item in restored_leaves:
+            self._install_leaf_widgets(leaf_item)
+
         self.empty_label.setVisible(False)
+        # An active search survives switching fixture types (D-03 mirror),
+        # and the nothing-marked hint reflects the newly-shown fixture.
+        self._apply_search()
+        self._update_nothing_marked()
 
     def clear(self) -> None:
-        """Empty the tree, forget the shown fixture and show the empty-state label."""
+        """Empty the tree, forget every remembered checklist and show the empty-state label.
+
+        A new MVR import always starts every fixture type fresh (D-04): the
+        outgoing fixture's state is never captured into self._remembered
+        here, unlike show_fixture's switch between two known types.
+        """
         self._rebuilding = True
         self.tree.blockSignals(True)
         try:
@@ -145,7 +206,33 @@ class RequirementsEditor(QWidget):
             self._rebuilding = False
         self._gdtf_spec = None
         self._fixture = None
+        self._remembered = {}
         self.empty_label.setVisible(True)
+        self.nothing_marked_label.setVisible(False)
+
+    def _capture_current(self) -> None:
+        """Save the currently shown fixture's leaf states into self._remembered.
+
+        Does nothing when no fixture is currently shown. Captures every
+        leaf (checked, direction, tolerance), not only checked ones, so a
+        row unticked after being ticked stays unticked when its type is
+        shown again.
+        """
+        if self._gdtf_spec is None:
+            return
+
+        captured: Dict[AttributeKey, Tuple[bool, str, float]] = {}
+        root = self.tree.invisibleRootItem()
+        for section_index in range(root.childCount()):
+            section = root.child(section_index)
+            for leaf_index in range(section.childCount()):
+                leaf = section.child(leaf_index)
+                attribute_key = leaf.data(COL_ATTRIBUTE, KEY_ROLE)
+                checked = leaf.checkState(COL_ATTRIBUTE) == Qt.CheckState.Checked
+                direction_value = leaf.data(COL_ATTRIBUTE, DIRECTION_ROLE)
+                tolerance = float(leaf.data(COL_ATTRIBUTE, TOLERANCE_ROLE))
+                captured[attribute_key] = (checked, direction_value, tolerance)
+        self._remembered[self._gdtf_spec] = captured
 
     def requirement_set(self) -> Optional[RequirementSet]:
         """Return the currently checked attributes as a RequirementSet, or None.
@@ -219,11 +306,19 @@ class RequirementsEditor(QWidget):
             self.tree.removeItemWidget(item, COL_DIRECTION)
             self.tree.removeItemWidget(item, COL_TOLERANCE)
 
+        self._update_nothing_marked()
         self._emit_timer.start()
 
     def _install_leaf_widgets(self, leaf: QTreeWidgetItem) -> None:
-        """Create and install the direction combo + tolerance spin for a checked leaf."""
+        """Create and install the direction combo + tolerance spin for a checked leaf.
+
+        A text attribute (Direction.EXACT) only ever offers "Must match": a
+        single, disabled combo entry and a disabled, "—"-reading tolerance
+        box (RESEARCH Pitfall 5) -- there is nothing for the LD to choose.
+        """
         direction = Direction(leaf.data(COL_ATTRIBUTE, DIRECTION_ROLE))
+        attribute_key = leaf.data(COL_ATTRIBUTE, KEY_ROLE)
+        unit = attribute_unit(attribute_key)
 
         combo = QComboBox(self.tree)
         if direction == Direction.EXACT:
@@ -239,11 +334,16 @@ class RequirementsEditor(QWidget):
 
         spin = QDoubleSpinBox(self.tree)
         spin.setDecimals(3)
-        if TOLERANCE_KIND == "percent":
+        if direction == Direction.EXACT:
+            spin.setRange(0, 0)
+            spin.setSpecialValueText(NO_TOLERANCE_TEXT)
+        elif TOLERANCE_KIND == "percent":
             spin.setRange(0, 1000)
             spin.setSuffix(" %")
         else:
             spin.setRange(0, 1e9)
+            if unit:
+                spin.setSuffix(f" {unit}")
         spin.setValue(float(leaf.data(COL_ATTRIBUTE, TOLERANCE_ROLE)))
         spin.setEnabled(direction != Direction.EXACT)
         spin.valueChanged.connect(lambda _value, leaf=leaf, spin=spin: self._on_tolerance_changed(leaf, spin))
@@ -258,3 +358,60 @@ class RequirementsEditor(QWidget):
         """Write a leaf's new tolerance value back onto its role and re-emit."""
         leaf.setData(COL_ATTRIBUTE, TOLERANCE_ROLE, spin.value())
         self._emit_timer.start()
+
+    def _apply_search(self, text: Optional[str] = None) -> None:
+        """Show/hide tree items to match the search box (D-03 mirror: visibility only).
+
+        Parameters:
+            text: The search text to apply, or None to read
+                self.search_edit.text() directly (the textChanged-connected
+                case, and the internal call at the end of show_fixture so an
+                active search survives switching fixture types).
+
+        Never changes a check state, never touches a role and never starts
+        the coalescing emit timer -- this method only ever calls
+        setHidden()/setExpanded() on tree items, mirroring
+        gui.attribute_picker.AttributePicker._apply_search exactly. A leaf
+        hidden by a search is still saved when ticked (requirement_set()
+        walks the tree, not visibility).
+        """
+        query = (text if text is not None else self.search_edit.text()).strip().casefold()
+
+        root = self.tree.invisibleRootItem()
+        for section_index in range(root.childCount()):
+            section = root.child(section_index)
+            section_text = section.text(COL_ATTRIBUTE).casefold()
+            section_matches = not query or query in section_text
+            any_visible_leaf = False
+
+            for leaf_index in range(section.childCount()):
+                leaf = section.child(leaf_index)
+                leaf_matches = (
+                    section_matches or not query or query in leaf.text(COL_ATTRIBUTE).casefold()
+                )
+                leaf.setHidden(not leaf_matches)
+                any_visible_leaf = any_visible_leaf or leaf_matches
+
+            section.setHidden(not any_visible_leaf)
+            if any_visible_leaf and query:
+                section.setExpanded(True)
+
+    def _update_nothing_marked(self) -> None:
+        """Show nothing_marked_label exactly when a fixture is shown and nothing is ticked."""
+        if self._fixture is None:
+            self.nothing_marked_label.setVisible(False)
+            return
+
+        root = self.tree.invisibleRootItem()
+        has_checked_leaf = False
+        for section_index in range(root.childCount()):
+            section = root.child(section_index)
+            for leaf_index in range(section.childCount()):
+                leaf = section.child(leaf_index)
+                if leaf.checkState(COL_ATTRIBUTE) == Qt.CheckState.Checked:
+                    has_checked_leaf = True
+                    break
+            if has_checked_leaf:
+                break
+
+        self.nothing_marked_label.setVisible(not has_checked_leaf)

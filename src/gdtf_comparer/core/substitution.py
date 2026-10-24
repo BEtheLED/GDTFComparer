@@ -10,11 +10,19 @@ import math
 import os
 from dataclasses import dataclass
 from enum import Enum
-from typing import Iterable, Optional, Tuple
+from typing import Iterable, Mapping, Optional, Tuple
 
 from gdtf_comparer.core.comparator import compare
 from gdtf_comparer.core.errors import CandidateFolderError, GDTFError
-from gdtf_comparer.core.models import AttributeKey, AttributeValue, FixtureModel, format_value, values_equal
+from gdtf_comparer.core.models import (
+    CATEGORY_BEAM,
+    CATEGORY_PHYSICAL,
+    AttributeKey,
+    AttributeValue,
+    FixtureModel,
+    format_value,
+    values_equal,
+)
 from gdtf_comparer.core.repository import FixtureRepository
 
 
@@ -107,24 +115,79 @@ def requirement_options(fixture: FixtureModel) -> Tuple[Tuple[AttributeKey, Attr
     )
 
 
-def default_direction(key: AttributeKey, value: AttributeValue) -> Direction:
-    """Return the default Direction for a newly-marked requirement.
+# D-05 defaults table (RESEARCH A1, A2): a per-attribute sensible starting
+# direction, keyed by bare GDTF attribute name, only consulted for the two
+# legacy categories (Beam, Physical Properties) -- a DMX attribute
+# definition literally named "Weight" never borrows this table (its value is
+# always text, so default_direction's str check already routes it to EXACT
+# first). Every default is overridable per attribute in the editor; a
+# wrong-feeling default costs the LD one click, never a blocked workflow.
+DEFAULT_DIRECTIONS: Mapping[str, Direction] = {
+    "Weight": Direction.LOWER,
+    "PowerConsumption": Direction.LOWER,
+    "LuminousFlux": Direction.HIGHER,
+    "BeamAngle": Direction.CLOSEST,
+    "FieldAngle": Direction.CLOSEST,
+    "ColorTemperature": Direction.CLOSEST,
+}
+
+# Display-only units (never change a stored number) for the Beam and
+# Physical Properties numeric attributes GDTF reports in these units.
+ATTRIBUTE_UNITS: Mapping[str, str] = {
+    "Weight": "kg",
+    "BeamAngle": "°",
+    "FieldAngle": "°",
+    "PowerConsumption": "W",
+    "LuminousFlux": "lm",
+    "ColorTemperature": "K",
+}
+
+
+def attribute_unit(key: AttributeKey) -> str:
+    """Return the display unit for key, or "" when it has none.
 
     Parameters:
-        key: The AttributeKey being marked (unused by this default; kept for
-            a future per-attribute table, Plan 05-03 D-05).
+        key: The AttributeKey to look up a unit for.
+
+    Returns:
+        ATTRIBUTE_UNITS.get(key.attribute, "") when key.category is
+        CATEGORY_BEAM or CATEGORY_PHYSICAL, else "" -- a DMX attribute
+        definition or an unknown numeric attribute never gets a unit
+        guessed for it.
+    """
+    if key.category not in (CATEGORY_BEAM, CATEGORY_PHYSICAL):
+        return ""
+    return ATTRIBUTE_UNITS.get(key.attribute, "")
+
+
+def default_direction(key: AttributeKey, value: AttributeValue) -> Direction:
+    """Return the default Direction for a newly-marked requirement (D-05).
+
+    Parameters:
+        key: The AttributeKey being marked.
         value: The target fixture's value for key.
 
     Returns:
-        Direction.EXACT for a str value, else Direction.CLOSEST.
+        Direction.EXACT for a str value (checked before any name lookup, so
+        a DMX attribute definition literally named "Weight" is never routed
+        to the numeric table below); else, when key.category is
+        CATEGORY_BEAM or CATEGORY_PHYSICAL and key.attribute is in
+        DEFAULT_DIRECTIONS, that table's direction; else Direction.CLOSEST.
     """
     if isinstance(value, str):
         return Direction.EXACT
+    if key.category in (CATEGORY_BEAM, CATEGORY_PHYSICAL) and key.attribute in DEFAULT_DIRECTIONS:
+        return DEFAULT_DIRECTIONS[key.attribute]
     return Direction.CLOSEST
 
 
 def default_tolerance(key: AttributeKey, value: AttributeValue, direction: Direction) -> float:
-    """Return the default tolerance for a newly-marked requirement.
+    """Return the default tolerance for a newly-marked requirement (D-06).
+
+    Every marked attribute gets its own tolerance, starting at 10% of the
+    target's own value (absolute mode) or a flat 10% (percent mode) -- never
+    one global tolerance shared across attributes. The LD can retype it per
+    attribute in the editor.
 
     Parameters:
         key: The AttributeKey being marked (unused by this default).
