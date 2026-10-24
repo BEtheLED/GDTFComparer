@@ -223,6 +223,16 @@ def _tolerance_amount(requirement: Requirement) -> float:
 def score_value(requirement: Requirement, candidate_value: AttributeValue) -> MatchState:
     """Score one candidate value against one requirement (SUB-02, D-10).
 
+    The user's own words for the chosen option (D-10, 05-CONTEXT.md Specific
+    Ideas): green means the candidate meets or beats the requirement (note
+    some attributes are lower-is-better, so "better" follows direction, not
+    always a bigger number); yellow means it's close, so it might work; red
+    means it's way outside the set range and won't work. Rules every option
+    shares: a candidate value the GDTF file does not list is always red,
+    shown as "Not listed"; a text requirement is green only when the values
+    match exactly (never yellow); and a value landing exactly on a boundary
+    always takes the better color (_at_most's math.isclose tolerance).
+
     Parameters:
         requirement: The Requirement to score against.
         candidate_value: The candidate fixture's value for requirement.key.
