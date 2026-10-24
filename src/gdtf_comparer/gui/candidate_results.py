@@ -38,6 +38,24 @@ STATE_DESCRIPTIONS: Dict[MatchState, str] = {
 
 NOT_LISTED_TEXT = "Not listed"
 
+# D-10 in the user's own words (05-CONTEXT.md Specific Ideas), shown above
+# the results table so color is never the only signal (gui.substitution_window
+# .legend_label).
+LEGEND_TEXT = (
+    "Green: meets or is better than the requirement · Yellow: close, so it "
+    "might work · Red: way outside the set range, will not work (or not "
+    "listed in that fixture's file)"
+)
+
+
+def _display_or_not_listed(value) -> str:
+    """Return format_value(value), or NOT_LISTED_TEXT when value is None.
+
+    Shared by _display_value and _tooltip so a requirement cell's displayed
+    text and its tooltip's "Candidate: ..." fragment always agree.
+    """
+    return format_value(value) if value is not None else NOT_LISTED_TEXT
+
 
 class CandidateResultsModel(QAbstractTableModel):
     """Table model over a CandidateScan: rank, fixture, file, summary, then one column per requirement."""
@@ -152,11 +170,16 @@ class CandidateResultsModel(QAbstractTableModel):
         requirement_index = column - FIRST_REQUIREMENT_COLUMN
         if not (0 <= requirement_index < len(score.values)):
             return None
-        value = score.values[requirement_index]
-        return format_value(value) if value is not None else NOT_LISTED_TEXT
+        return _display_or_not_listed(score.values[requirement_index])
 
     def _tooltip(self, score, column: int) -> Any:
-        """Return the ToolTipRole text for one cell: requirement cells get a full explanation."""
+        """Return the ToolTipRole text for one cell: requirement cells get a full explanation.
+
+        A requirement cell's tooltip always says in words what its color
+        means (D-10 on screen): the candidate's own value (or NOT_LISTED_TEXT
+        when the candidate's file does not list it), the target value, the
+        requirement's direction label, and STATE_DESCRIPTIONS[state].
+        """
         if column == COL_FILE:
             return score.candidate.source_path
         if column < FIRST_REQUIREMENT_COLUMN:
@@ -168,7 +191,7 @@ class CandidateResultsModel(QAbstractTableModel):
         requirement = self._scan.requirement_set.requirements[requirement_index]
         state = score.states[requirement_index]
         return (
-            f"Candidate: {format_value(score.values[requirement_index])} · "
+            f"Candidate: {_display_or_not_listed(score.values[requirement_index])} · "
             f"Your fixture: {format_value(requirement.target)} · "
             f"{DIRECTION_LABELS[requirement.direction]} → {STATE_DESCRIPTIONS[state]}"
         )
