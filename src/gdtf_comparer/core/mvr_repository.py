@@ -28,6 +28,14 @@ MISSING_EMBEDDED_GDTF_REASON = "its GDTF file is not included in this MVR."
 # has its own child_list, not only GroupObject).
 _CHILD_NODE_LISTS = ("group_objects", "scene_objects", "trusses", "supports", "video_screens", "projectors")
 
+# import_summary_message's building blocks (RESEARCH Pitfall 4; SUB-01
+# prohibition: every skipped type and unreferenced fixture is always named).
+NO_FIXTURES_TEMPLATE = "'{file}' doesn't contain any fixtures."
+NONE_IMPORTED_TEMPLATE = "None of the fixture types in '{file}' could be imported."
+FOUND_TEMPLATE = "Found {types} in '{file}' ({fixtures})."
+SKIPPED_TEMPLATE = " Couldn't import {count}: {details}."
+UNREFERENCED_TEMPLATE = " {count} in the show {verb} no GDTF file and {pronoun} left out."
+
 
 @dataclass(frozen=True)
 class FixtureTypeEntry:
@@ -73,12 +81,18 @@ class MVRImport:
         skipped: The unique fixture types that could not be imported.
         unreferenced_fixture_count: How many Fixture nodes carried no
             GDTFSpec reference at all.
+        total_fixture_count: How many Fixture nodes the walk found in total
+            (referenced plus unreferenced), used only to tell "the show has
+            no fixtures at all" apart from "every fixture type failed to
+            import" in import_summary_message. Defaults to 0 so existing
+            positional construction keeps working.
     """
 
     source_path: str
     fixture_types: tuple
     skipped: tuple
     unreferenced_fixture_count: int
+    total_fixture_count: int = 0
 
     @property
     def file_name(self) -> str:
@@ -111,6 +125,33 @@ def iter_fixtures(child_list: Optional[Any]) -> Iterator[Any]:
             yield from iter_fixtures(getattr(node, "child_list", None))
 
 
+def readable_gdtf_spec(gdtf_spec: str) -> str:
+    """Recover a GDTFSpec's original archive spelling from pymvr's mojibake.
+
+    pymvr's BaseChildNode._read_xml unconditionally re-decodes every
+    <GDTFSpec> element's text with .encode("utf-8").decode("cp437") ("IBM PC
+    encoding") -- a transform correct for a zip written without the UTF-8
+    name flag, but one that mangles any non-ASCII manufacturer/fixture name
+    when the archive (as Python's zipfile always writes one) lists member
+    names as real Unicode (RESEARCH Pitfall 4). Reversing the same
+    byte-for-byte transform recovers the original text.
+
+    Parameters:
+        gdtf_spec: The gdtf_spec string a pymvr.Fixture reported.
+
+    Returns:
+        gdtf_spec.encode("cp437").decode("utf-8") when that round trip
+        succeeds and differs from gdtf_spec, else gdtf_spec unchanged (an
+        encode/decode failure just means no recovery is possible -- exact
+        matching is always tried first in resolve_member_name).
+    """
+    try:
+        candidate = gdtf_spec.encode("cp437").decode("utf-8")
+    except (UnicodeEncodeError, UnicodeDecodeError):
+        return gdtf_spec
+    return candidate if candidate != gdtf_spec else gdtf_spec
+
+
 def resolve_member_name(gdtf_spec: str, member_names: FrozenSet[str]) -> Optional[str]:
     """Resolve a Fixture's gdtf_spec to an exact zip member name.
 
@@ -119,9 +160,20 @@ def resolve_member_name(gdtf_spec: str, member_names: FrozenSet[str]) -> Optiona
         member_names: The MVR archive's own member names.
 
     Returns:
-        gdtf_spec itself when it is present in member_names, else None.
+        gdtf_spec itself when it is present in member_names (the common
+        case: the zip was written without the UTF-8 name flag, or gdtf_spec
+        is pure ASCII, so no mojibake was introduced). Otherwise
+        readable_gdtf_spec(gdtf_spec) when that differs from gdtf_spec and
+        is itself present in member_names (RESEARCH Pitfall 4: the zip's
+        real, accented member name). Otherwise None -- the MVR references a
+        GDTF this archive does not actually bundle.
     """
-    return gdtf_spec if gdtf_spec in member_names else None
+    if gdtf_spec in member_names:
+        return gdtf_spec
+    readable = readable_gdtf_spec(gdtf_spec)
+    if readable != gdtf_spec and readable in member_names:
+        return readable
+    return None
 
 
 def import_mvr(path: str, repository: Optional[FixtureRepository] = None) -> MVRImport:
@@ -179,15 +231,24 @@ def import_mvr(path: str, repository: Optional[FixtureRepository] = None) -> MVR
         count = counts[spec]
         member = resolve_member_name(spec, names)
         if member is None:
-            skipped.append(SkippedFixtureType(spec, count, MISSING_EMBEDDED_GDTF_REASON))
+            skipped.append(SkippedFixtureType(readable_gdtf_spec(spec), count, MISSING_EMBEDDED_GDTF_REASON))
             continue
         try:
+            # member is the archive's own (readable) spelling, resolved by
+            # resolve_member_name above -- the entry carries that, never
+            # pymvr's possibly-mangled gdtf_spec (RESEARCH Pitfall 4).
             model = repo.load_bytes(read_mvr_member_bytes(validated.archive_bytes, path, member), member)
-            entries.append(FixtureTypeEntry(spec, count, model))
+            entries.append(FixtureTypeEntry(member, count, model))
         except GDTFError as exc:
-            skipped.append(SkippedFixtureType(spec, count, exc.reason))
+            skipped.append(SkippedFixtureType(readable_gdtf_spec(spec), count, exc.reason))
 
-    return MVRImport(path, tuple(entries), tuple(skipped), unreferenced)
+    total_fixture_count = unreferenced + sum(counts.values())
+    return MVRImport(path, tuple(entries), tuple(skipped), unreferenced, total_fixture_count)
+
+
+def _count(n: int, singular: str, plural: str) -> str:
+    """Return "{n} {singular}" or "{n} {plural}" per standard English pluralization."""
+    return f"{n} {singular if n == 1 else plural}"
 
 
 def import_summary_message(result: MVRImport) -> str:
@@ -197,22 +258,40 @@ def import_summary_message(result: MVRImport) -> str:
         result: The MVRImport to summarize.
 
     Returns:
-        "No fixture types could be imported from '{file}'." when nothing
-        imported; otherwise "Found {types} fixture type(s) ({fixtures}
-        fixture(s)) in '{file}'.", with a trailing clause naming any skipped
-        fixture types and why.
+        NO_FIXTURES_TEMPLATE when the MVR's scene walk found no Fixture
+        nodes at all; NONE_IMPORTED_TEMPLATE when it found some but none
+        imported; otherwise FOUND_TEMPLATE. A SKIPPED_TEMPLATE clause is
+        appended when any fixture type could not be imported (prohibition:
+        every one is named, never silently dropped), and an
+        UNREFERENCED_TEMPLATE clause is appended when any Fixture node
+        carried no GDTFSpec at all.
     """
-    if not result.fixture_types:
-        return f"No fixture types could be imported from '{result.file_name}'."
-
-    total_fixtures = sum(entry.instance_count for entry in result.fixture_types)
-    message = (
-        f"Found {len(result.fixture_types)} fixture type(s) "
-        f"({total_fixtures} fixture(s)) in '{result.file_name}'."
-    )
-    if result.skipped:
-        reasons = "; ".join(
-            f"{skipped.gdtf_spec} — {skipped.reason.rstrip('.')}" for skipped in result.skipped
+    if result.total_fixture_count == 0:
+        message = NO_FIXTURES_TEMPLATE.format(file=result.file_name)
+    elif not result.fixture_types:
+        message = NONE_IMPORTED_TEMPLATE.format(file=result.file_name)
+    else:
+        total_fixtures = sum(entry.instance_count for entry in result.fixture_types)
+        message = FOUND_TEMPLATE.format(
+            types=_count(len(result.fixture_types), "fixture type", "fixture types"),
+            file=result.file_name,
+            fixtures=_count(total_fixtures, "fixture", "fixtures"),
         )
-        message += f" {len(result.skipped)} fixture type(s) could not be imported: {reasons}."
+
+    if result.skipped:
+        details = "; ".join(
+            f"{skipped.gdtf_spec} ({skipped.reason.rstrip('.')})" for skipped in result.skipped
+        )
+        message += SKIPPED_TEMPLATE.format(
+            count=_count(len(result.skipped), "fixture type", "fixture types"), details=details
+        )
+
+    if result.unreferenced_fixture_count:
+        n = result.unreferenced_fixture_count
+        message += UNREFERENCED_TEMPLATE.format(
+            count=_count(n, "fixture", "fixtures"),
+            verb="names" if n == 1 else "name",
+            pronoun="was" if n == 1 else "were",
+        )
+
     return message

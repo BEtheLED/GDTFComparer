@@ -222,6 +222,42 @@ def fixture_xml(name: str, gdtf_spec: Optional[str], *, child_list_xml: str = ""
     return f"<Fixture name={name_attr} uuid={uuid_attr}>{gdtf_spec_xml}{child_list}</Fixture>"
 
 
+def group_xml(name: str, children_xml: str) -> str:
+    """Build a raw <GroupObject> element wrapping a <ChildList>, for test MVR scene XML.
+
+    Parameters:
+        name: The GroupObject's name attribute.
+        children_xml: Raw XML placed inside the GroupObject's <ChildList>.
+
+    Returns:
+        A <GroupObject name=... uuid=...><ChildList>...</ChildList></GroupObject>
+        element as a raw XML string, using fixture_xml's deterministic uuid
+        counter.
+    """
+    name_attr = quoteattr(name)
+    uuid_attr = quoteattr(_deterministic_uuid())
+    return f"<GroupObject name={name_attr} uuid={uuid_attr}><ChildList>{children_xml}</ChildList></GroupObject>"
+
+
+def child_node_xml(tag: str, name: str, children_xml: str) -> str:
+    """Build a raw SceneObject/Truss/Support/VideoScreen/Projector element.
+
+    Parameters:
+        tag: The element tag name (one of "SceneObject", "Truss", "Support",
+            "VideoScreen" or "Projector" -- every node type besides
+            GroupObject that carries its own <ChildList>, RESEARCH Pattern 2).
+        name: The node's name attribute.
+        children_xml: Raw XML placed inside the node's <ChildList>.
+
+    Returns:
+        A <{tag} name=... uuid=...><ChildList>...</ChildList></{tag}> element
+        as a raw XML string, using fixture_xml's deterministic uuid counter.
+    """
+    name_attr = quoteattr(name)
+    uuid_attr = quoteattr(_deterministic_uuid())
+    return f"<{tag} name={name_attr} uuid={uuid_attr}><ChildList>{children_xml}</ChildList></{tag}>"
+
+
 def build_scene_xml(layers_xml: str) -> str:
     """Build a full GeneralSceneDescription.xml document around raw layers XML.
 
