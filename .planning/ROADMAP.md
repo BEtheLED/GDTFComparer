@@ -180,7 +180,7 @@ Plans:
   3. User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself) and a different user, in a different session, can load that file back in.
   4. User can point the app at a local folder of candidate GDTF files they maintain and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), with candidates ranked best match first.
 
-**Plans**: 1/5 plans executed
+**Plans**: 4/5 plans executed
 
 Plans:
 **Wave 1**
@@ -189,9 +189,9 @@ Plans:
 
 **Wave 2** *(blocked on 05-01; the three plans share no files)*
 
-- [ ] 05-02-PLAN.md — MVR import depth: fixtures found wherever the scene nests them, accented GDTF names (cp437 recovery), missing/broken embedded GDTFs named, empty-state messages, every hostile or wrong file ends in one friendly message, one import at a time, clean shutdown with a stuck worker (PARSE-02, SUB-01) (wave 2)
-- [ ] 05-03-PLAN.md — Requirements editor depth: each fixture type keeps its own checklist (D-04), smart overridable directions (D-05), per-attribute tolerances with units (D-06), text attributes "Must match", declared-only rows, search, nothing-marked allowed (SUB-02) (wave 2)
-- [ ] 05-04-PLAN.md — Requirements file trust boundary: identical round trip in a separate process, exactly one fixture per file (D-09), strict refuse-never-coerce validation, safe read, atomic writes (SUB-03) (wave 2)
+- [x] 05-02-PLAN.md — MVR import depth: fixtures found wherever the scene nests them, accented GDTF names (cp437 recovery), missing/broken embedded GDTFs named, empty-state messages, every hostile or wrong file ends in one friendly message, one import at a time, clean shutdown with a stuck worker (PARSE-02, SUB-01) (wave 2)
+- [x] 05-03-PLAN.md — Requirements editor depth: each fixture type keeps its own checklist (D-04), smart overridable directions (D-05), per-attribute tolerances with units (D-06), text attributes "Must match", declared-only rows, search, nothing-marked allowed (SUB-02) (wave 2)
+- [x] 05-04-PLAN.md — Requirements file trust boundary: identical round trip in a separate process, exactly one fixture per file (D-09), strict refuse-never-coerce validation, safe read, atomic writes (SUB-03) (wave 2)
 
 **Wave 3** *(blocked on 05-02 and 05-03)*
 
@@ -208,4 +208,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 2/4 | In Progress | - |
-| 5. MVR Import & Fixture Substitution | 1/5 | In Progress | - |
+| 5. MVR Import & Fixture Substitution | 4/5 | In Progress | - |

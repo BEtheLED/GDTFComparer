@@ -10,7 +10,7 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 ### Parsing
 
 - [x] **PARSE-01**: App parses GDTF files using the `pygdtf` library instead of the current hand-rolled flat-attribute extraction, preserving element path/namespace so same-named attributes on different elements don't collide
-- [ ] **PARSE-02**: App parses MVR files using the `pymvr` library
+- [x] **PARSE-02**: App parses MVR files using the `pymvr` library
 
 ### Attribute Selection
 
@@ -40,9 +40,9 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 
 ### Fixture Substitution (Phase 5, redefined 2026-10-24 — see 05-CONTEXT.md)
 
-- [ ] **SUB-01**: User can import an MVR file (parsed via `pymvr`) and see one entry per unique GDTF fixture type it references, which becomes the fixture list for this workflow instead of browsing to GDTF files one at a time
-- [ ] **SUB-02**: For each fixture type, user can mark specific attributes as "important," each with a direction (higher/lower/closer-to-target is better — smart default, overridable per attribute) and its own tolerance
-- [ ] **SUB-03**: User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself), and a different user in a different session can load that file back in
+- [x] **SUB-01**: User can import an MVR file (parsed via `pymvr`) and see one entry per unique GDTF fixture type it references, which becomes the fixture list for this workflow instead of browsing to GDTF files one at a time
+- [x] **SUB-02**: For each fixture type, user can mark specific attributes as "important," each with a direction (higher/lower/closer-to-target is better — smart default, overridable per attribute) and its own tolerance
+- [x] **SUB-03**: User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself), and a different user in a different session can load that file back in
 - [ ] **SUB-04**: User can point the app at a local folder of candidate GDTF files and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), ranked best match first
 
 ## v2 Requirements
@@ -75,7 +75,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | PARSE-01 | Phase 1 | Complete |
-| PARSE-02 | Phase 5 | Pending |
+| PARSE-02 | Phase 5 | Complete |
 | ATTR-01 | Phase 2 | Complete |
 | ATTR-02 | Phase 2 | Complete |
 | ATTR-03 | Phase 3 | Complete |
@@ -87,9 +87,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PKG-01 | Phase 4 | Complete |
 | PKG-02 | Phase 4 | Complete |
 | PKG-03 | Phase 4 | Complete |
-| SUB-01 | Phase 5 | Pending |
-| SUB-02 | Phase 5 | Pending |
-| SUB-03 | Phase 5 | Pending |
+| SUB-01 | Phase 5 | Complete |
+| SUB-02 | Phase 5 | Complete |
+| SUB-03 | Phase 5 | Complete |
 | SUB-04 | Phase 5 | Pending |
 
 **Coverage:**
