@@ -38,15 +38,20 @@ This milestone is a POC/proof-of-concept for the rebuilt comparer — everything
 - [x] **PKG-02**: User can download and run a standalone Windows build of the app with no separate Python install
 - [x] **PKG-03**: Standalone builds are signed/notarized (macOS) or otherwise configured to avoid being blocked by Gatekeeper/SmartScreen on first launch
 
-### MVR-xchange Networking
+### Fixture Substitution (Phase 5, redefined 2026-10-24 — see 05-CONTEXT.md)
 
-- [ ] **NET-01**: User can discover other MVR-xchange stations on the local network (LAN, mDNS-based discovery)
-- [ ] **NET-02**: User can pull/receive an MVR file from a discovered MVR-xchange station and have its fixtures fed into the existing compare workflow
-- [ ] **NET-03**: MVR-xchange networking is implemented from the public protocol spec (not ported from GPLv3 reference code) and remains fully optional — the app functions normally for file-based comparison with networking disabled/unavailable
+- [ ] **SUB-01**: User can import an MVR file (parsed via `pymvr`) and see one entry per unique GDTF fixture type it references, which becomes the fixture list for this workflow instead of browsing to GDTF files one at a time
+- [ ] **SUB-02**: For each fixture type, user can mark specific attributes as "important," each with a direction (higher/lower/closer-to-target is better — smart default, overridable per attribute) and its own tolerance
+- [ ] **SUB-03**: User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself), and a different user in a different session can load that file back in
+- [ ] **SUB-04**: User can point the app at a local folder of candidate GDTF files and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), ranked best match first
 
 ## v2 Requirements
 
-None planned yet — this milestone intentionally ships the full comparer feature set as a POC. v2 scope will be defined after user feedback on this release.
+Deferred during the Phase 5 scope redefinition (2026-10-24) — may return as their own phase if there's demand:
+
+- **Live LAN discovery** (formerly NET-01): discover other MVR-xchange stations on the local network via mDNS
+- **Live MVR pull from a discovered station** (formerly NET-02): pull/receive an MVR file over the network rather than importing a local file
+- **Protocol-implementation constraint** (formerly NET-03): if live networking returns, it must be implemented from the public MVR-xchange protocol spec, not ported from GPLv3 reference code, and must remain fully optional
 
 ## Out of Scope
 
@@ -82,16 +87,17 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PKG-01 | Phase 4 | Complete |
 | PKG-02 | Phase 4 | Complete |
 | PKG-03 | Phase 4 | Complete |
-| NET-01 | Phase 5 | Pending |
-| NET-02 | Phase 5 | Pending |
-| NET-03 | Phase 5 | Pending |
+| SUB-01 | Phase 5 | Pending |
+| SUB-02 | Phase 5 | Pending |
+| SUB-03 | Phase 5 | Pending |
+| SUB-04 | Phase 5 | Pending |
 
 **Coverage:**
 
-- v1 requirements: 16 total
-- Mapped to phases: 16 (Phase 1: 5, Phase 2: 3, Phase 3: 1, Phase 4: 3, Phase 5: 4)
+- v1 requirements: 17 total
+- Mapped to phases: 17 (Phase 1: 5, Phase 2: 3, Phase 3: 1, Phase 4: 3, Phase 5: 5)
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-25*
-*Last updated: 2026-10-04 — dropped EXPORT-01/EXPORT-02 per Phase 3 discussion scope flag*
+*Last updated: 2026-10-24 — Phase 5 redefined from live LAN discovery (NET-01/02/03) to file-based MVR import + fixture substitution (SUB-01..04); NET-01/02/03 deferred to v2*

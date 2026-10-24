@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted (completed 2026-10-14)
 - [x] **Phase 3: Compare Profiles** - Users can save and reload reusable attribute selections ("compare profiles") for future comparisons (completed 2026-10-11)
 - [ ] **Phase 4: Standalone Packaging** - Users can download and run signed/notarized standalone builds on macOS and Windows with no Python install
-- [ ] **Phase 5: MVR-xchange Networking** - Users can discover LAN peers and pull MVR fixture data into the compare workflow, fully optional
+- [ ] **Phase 5: MVR Import & Fixture Substitution** - Users can import an MVR show file, mark which attributes matter per fixture, and find substitute fixtures from a local inventory folder that meet those requirements
 
 ## Phase Details
 
@@ -165,18 +165,20 @@ Plans:
 
 - [ ] 04-04-PLAN.md — Write packaging/RELEASING.md and follow it to publish GitHub Release v0.1.0 with GDTF-Comparer-macos.zip and GDTF-Comparer-windows.zip; fetch the published files back and check them; end-of-phase human checks walk the documented first launch on a real Mac and a real Windows PC (PKG-01, PKG-02, PKG-03) (wave 3)
 
-### Phase 5: MVR-xchange Networking
+### Phase 5: MVR Import & Fixture Substitution
 
-**Goal**: Users can pull live fixture data from other MVR-xchange stations on their local network directly into the same compare workflow, entirely optionally.
+**Scope redefined 2026-10-24** (see `05-CONTEXT.md`): this phase originally covered live LAN discovery between MVR-xchange stations (NET-01/02/03). That framing is deferred — see REQUIREMENTS.md v2. The phase now covers file-based MVR import and a two-role fixture-substitution workflow (an LD sets per-fixture requirements; a shop matches their own inventory against them).
+
+**Goal**: A lighting designer can import an MVR show file, mark which attributes matter most for each fixture type, and share those requirements so anyone — including a rental shop checking their own inventory — can find substitute fixtures that meet them.
 **Mode:** mvp
 **Depends on**: Phase 4
-**Requirements**: PARSE-02, NET-01, NET-02, NET-03
+**Requirements**: PARSE-02, SUB-01, SUB-02, SUB-03, SUB-04
 **Success Criteria** (what must be TRUE):
 
-  1. User can see other MVR-xchange stations discovered on the local network (mDNS) inside the app.
-  2. User can pull/receive an MVR file from a discovered station, parsed via `pymvr`, and have its fixtures appear in the existing compare workflow.
-  3. With networking disabled or unavailable, the app still works normally for file-based GDTF comparison.
-  4. The MVR-xchange protocol handling is implemented from the public spec, not ported from GPLv3 reference code.
+  1. User can import an MVR file (parsed via `pymvr`) and see one entry per unique GDTF fixture type it references — not one entry per physical fixture instance — which becomes the fixture list for this workflow instead of manually browsing to files one at a time.
+  2. For each fixture type, user can mark specific attributes as "important," each with a higher/lower/closer-to-target direction (smart default per attribute, overridable) and its own tolerance (not one global tolerance for everything).
+  3. User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself) and a different user, in a different session, can load that file back in.
+  4. User can point the app at a local folder of candidate GDTF files they maintain and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), with candidates ranked best match first.
 
 **Plans**: TBD
 
@@ -191,4 +193,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 2/4 | In Progress | - |
-| 5. MVR-xchange Networking | 0/TBD | Not started | - |
+| 5. MVR Import & Fixture Substitution | 0/TBD | Not started | - |
