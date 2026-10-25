@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 2: Attribute Browsing & Diff Highlighting** - Users can browse/search the full GDTF attribute set and see differing values visually highlighted (completed 2026-10-14)
 - [x] **Phase 3: Compare Profiles** - Users can save and reload reusable attribute selections ("compare profiles") for future comparisons (completed 2026-10-11)
 - [ ] **Phase 4: Standalone Packaging** - Users can download and run signed/notarized standalone builds on macOS and Windows with no Python install
-- [ ] **Phase 5: MVR Import & Fixture Substitution** - Users can import an MVR show file, mark which attributes matter per fixture, and find substitute fixtures from a local inventory folder that meet those requirements
+- [x] **Phase 5: MVR Import & Fixture Substitution** - Users can import an MVR show file, mark which attributes matter per fixture, and find substitute fixtures from a local inventory folder that meet those requirements (completed 2026-10-25)
 
 ## Phase Details
 
@@ -179,7 +179,7 @@ Plans:
   3. User can export one fixture's marked requirements to a separate shareable file (never embedded inside the MVR itself) and a different user, in a different session, can load that file back in.
   4. User can point the app at a local folder of candidate GDTF files they maintain and see each candidate scored against an imported fixture's requirements with a three-state per-attribute result (green = meets/exceeds, yellow = close, red = out of range), with candidates ranked best match first.
 
-**Plans**: 5/5 plans executed
+**Plans**: 5/5 plans complete
 
 Plans:
 **Wave 1**
@@ -207,4 +207,4 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
 | 4. Standalone Packaging | 2/4 | In Progress | - |
-| 5. MVR Import & Fixture Substitution | 5/5 | In Progress | - |
+| 5. MVR Import & Fixture Substitution | 5/5 | Complete    | 2026-10-25 |
