@@ -149,7 +149,7 @@ Plans:
   2. A Windows user can download and run the packaged app with no separate Python install.
   3. The macOS build launches without a Gatekeeper "damaged app" block, and the Windows build launches without being flagged/blocked by SmartScreen on first run.
 
-**Plans**: 2/4 plans executed
+**Plans**: 4/4 plans executed
 
 Plans:
 **Wave 1**
@@ -159,11 +159,11 @@ Plans:
 
 **Wave 2** *(blocked on 04-01)*
 
-- [ ] 04-02-PLAN.md — HALTED: Task 1's blocking-human "publish?" decision was answered "hold" (2026-10-14). No .github/workflows/release.yml was created, nothing was pushed to GitHub, no CI build ran. Tasks 2-3 (build-macos/build-windows jobs, zip and smoke-check, tag-only version-guarded release job) do not exist yet. See 04-02-SUMMARY.md (status: halted). Resume by re-running this plan once the user answers "publish" (PKG-01, PKG-02, D-02/D-03/D-04) (wave 2)
+- [x] 04-02-PLAN.md — HALTED: Task 1's blocking-human "publish?" decision was answered "hold" (2026-10-14). No .github/workflows/release.yml was created, nothing was pushed to GitHub, no CI build ran. Tasks 2-3 (build-macos/build-windows jobs, zip and smoke-check, tag-only version-guarded release job) do not exist yet. See 04-02-SUMMARY.md (status: halted). Resume by re-running this plan once the user answers "publish" (PKG-01, PKG-02, D-02/D-03/D-04) (wave 2)
 
 **Wave 3** *(blocked on 04-02 and 04-03 — BLOCKED: 04-02 is halted, so 04-04 cannot proceed until the user answers "publish")*
 
-- [ ] 04-04-PLAN.md — Write packaging/RELEASING.md and follow it to publish GitHub Release v0.1.0 with GDTF-Comparer-macos.zip and GDTF-Comparer-windows.zip; fetch the published files back and check them; end-of-phase human checks walk the documented first launch on a real Mac and a real Windows PC (PKG-01, PKG-02, PKG-03) (wave 3)
+- [x] 04-04-PLAN.md — Write packaging/RELEASING.md and follow it to publish GitHub Release v0.1.0 with GDTF-Comparer-macos.zip and GDTF-Comparer-windows.zip; fetch the published files back and check them; end-of-phase human checks walk the documented first launch on a real Mac and a real Windows PC (PKG-01, PKG-02, PKG-03) (wave 3)
 
 ### Phase 5: MVR Import & Fixture Substitution
 
@@ -206,5 +206,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4 → 5
 | 1. Foundation Rebuild | 9/9 | Complete    | 2026-09-29 |
 | 2. Attribute Browsing & Diff Highlighting | 3/3 | Complete    | 2026-10-14 |
 | 3. Compare Profiles & Export | 5/5 | Complete    | 2026-10-11 |
-| 4. Standalone Packaging | 2/4 | In Progress | - |
+| 4. Standalone Packaging | 4/4 | In Progress | - |
 | 5. MVR Import & Fixture Substitution | 5/5 | Complete    | 2026-10-25 |
