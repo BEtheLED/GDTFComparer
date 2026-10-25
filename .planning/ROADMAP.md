@@ -170,7 +170,6 @@ Plans:
 **Scope redefined 2026-10-24** (see `05-CONTEXT.md`): this phase originally covered live LAN discovery between MVR-xchange stations (NET-01/02/03). That framing is deferred — see REQUIREMENTS.md v2. The phase now covers file-based MVR import and a two-role fixture-substitution workflow (an LD sets per-fixture requirements; a shop matches their own inventory against them).
 
 **Goal**: A lighting designer can import an MVR show file, mark which attributes matter most for each fixture type, and share those requirements so anyone — including a rental shop checking their own inventory — can find substitute fixtures that meet them.
-**Mode:** mvp
 **Depends on**: Phase 4
 **Requirements**: PARSE-02, SUB-01, SUB-02, SUB-03, SUB-04
 **Success Criteria** (what must be TRUE):
