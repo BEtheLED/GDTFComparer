@@ -58,3 +58,100 @@ jobs:
           path: GDTF-Comparer-macos.zip
           if-no-files-found: error
           retention-days: 14
+
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install the project with its dev extras
+        run: python -m pip install ".[dev]"
+
+      - name: Build the Windows app with PyInstaller
+        run: python -m PyInstaller --noconfirm --clean packaging/app.spec
+
+      - name: Zip the app folder
+        run: Compress-Archive -Path "dist/GDTF Comparer" -DestinationPath GDTF-Comparer-windows.zip
+
+      - name: Smoke-check the zipped download
+        run: python packaging/smoke_check.py --zip GDTF-Comparer-windows.zip
+
+      - name: Upload the Windows build
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-build
+          path: GDTF-Comparer-windows.zip
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Check the tag matches pyproject.toml's version
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          python - <<'PYEOF'
+          import os
+          import tomllib
+
+          tag = os.environ["TAG_NAME"]
+          with open("pyproject.toml", "rb") as f:
+              version = tomllib.load(f)["project"]["version"]
+          expected = f"v{version}"
+          if tag != expected:
+              print(
+                  f"Tag {tag} does not match pyproject.toml version {version}: "
+                  "bump the version or fix the tag"
+              )
+              raise SystemExit(1)
+          PYEOF
+
+      - name: Download the macOS build
+        uses: actions/download-artifact@v8
+        with:
+          name: macos-build
+
+      - name: Download the Windows build
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-build
+
+      - name: Publish the GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          name: GDTF Comparer ${{ github.ref_name }}
+          body_path: packaging/release-notes.md
+          files: |
+            GDTF-Comparer-macos.zip
+            GDTF-Comparer-windows.zip
+          fail_on_unmatched_files: true
+          draft: false
+          prerelease: false
