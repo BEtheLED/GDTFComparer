@@ -21,18 +21,18 @@
     {
       "number": "4",
       "name": "Standalone Packaging",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "5",
-      "name": "MVR-xchange Networking",
-      "status": "pending"
+      "name": "MVR Import & Fixture Substitution",
+      "status": "complete"
     }
   ],
   "next": {
     "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 04 of 5 · executing"
+    "label": "Advance to the next step (plan phase 4)",
+    "reason": "Phase 4 of 5 — needs a plan"
   },
-  "updated_at": "2026-10-14T23:14:41.308Z"
+  "updated_at": "2026-10-25T13:01:54.302Z"
 }

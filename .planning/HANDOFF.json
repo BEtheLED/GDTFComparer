@@ -1,0 +1,58 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-10-25T13:49:31.690Z",
+  "phase": "04",
+  "phase_name": "standalone-packaging",
+  "phase_dir": ".planning/phases/04-standalone-packaging",
+  "plan": 2,
+  "task": 1,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {"id": 1, "name": "04-01: macOS standalone build + smoke check (tracer)", "status": "done"},
+    {"id": 2, "name": "04-03: first-launch instructions (README + release-notes.md)", "status": "done"},
+    {"id": 3, "name": "04-02 Task 1: publish/hold decision", "status": "done", "progress": "User answered 'hold' on 2026-10-14 — plan halted by design, no CI work performed"}
+  ],
+  "remaining_tasks": [
+    {"id": 4, "name": "04-02 Task 2: create .github/workflows/release.yml, push to GitHub", "status": "not_started"},
+    {"id": 5, "name": "04-02 Task 3: hand-start CI build, verify macOS + Windows downloads", "status": "not_started"},
+    {"id": 6, "name": "04-04: write packaging/RELEASING.md, publish GitHub Release v0.1.0, verify both platform builds with real hardware", "status": "not_started", "blocked_by": "04-02"}
+  ],
+  "blockers": [
+    {"description": "Plan 04-02 is halted at a blocking-human decision: 'Publish this project to its public GitHub page now?' User answered 'hold' on 2026-10-14. Local main is 229 commits ahead of origin/main — nothing has ever been pushed to GitHub.", "type": "human_action", "workaround": "none — this is a deliberate pause, not a technical blocker. Ask the user if they're ready to publish; if yes, re-run /gsd-execute-phase 04 (or resume plan 04-02 directly) and it proceeds through Tasks 2-3 automatically."}
+  ],
+  "async_jobs": [],
+  "human_actions_pending": [
+    {"action": "Answer whether to publish the project to GitHub now (unblocks 04-02 Task 2+3, then 04-04)", "context": "229 local commits have never been pushed. Publishing creates a public GitHub Actions release pipeline and, eventually, a public v0.1.0 release with downloadable macOS/Windows builds.", "blocking": true}
+  ],
+  "decisions": [
+    {"decision": "Phase 5 config.json: added git.allow_default_branch_commits: true", "rationale": "Project is configured with branching_strategy: none (commits land directly on main, matching how phases 1-4 were done), but the executor's safety guard refuses to commit on a protected branch unless this override is set. User confirmed committing directly to main for phase 5.", "phase": "05"},
+    {"decision": "Phase 5 ROADMAP.md: removed stale 'Mode: mvp' flag from the Phase 5 header", "rationale": "Phase 5 was rescoped on 2026-10-24 from the original live-LAN-discovery framing (NET-01/02/03, deferred) to the current MVR-import/fixture-substitution framing. The Goal line was rewritten in plain prose at that time but the pre-existing Mode: mvp flag was left in place, causing the phase verifier to refuse to run (it requires MVP-mode goals in User Story format). The phase's four numbered Success Criteria are standard format, so the mode flag was simply stale and removed.", "phase": "05"},
+    {"decision": "Phase 4 Plan 02 Task 1 publish decision: 'hold' (recorded 2026-10-14, not this session)", "rationale": "User chose not to publish the ~180-at-the-time unpushed commits to the public GitHub page yet.", "phase": "04"}
+  ],
+  "uncommitted_files": [
+    "M .planning/state.json",
+    "?? .claude/.gsd-profile",
+    "?? .claude/agents/",
+    "?? .claude/commands/",
+    "?? .claude/gsd-core/",
+    "?? .claude/gsd-file-manifest.json",
+    "?? .claude/gsd-install-state.json",
+    "?? .claude/hooks/",
+    "?? .claude/scripts/",
+    "?? .claude/settings.local.json",
+    "?? .planning/debug/attributes-panel-toolbar-clipping-default-width.md",
+    "?? .planning/debug/comparison-engine-only-reads-target-file.md",
+    "?? .planning/research/.cache/37f751ad04164bec4286bda9cc50362bf57d34cddae353e7ddaffe734a0932cb.json",
+    "?? .planning/research/.cache/3d4abd1fd8b763429649df48993a8eff43461528f9f74611523aa72e7eb2d8c0.json",
+    "?? .planning/research/.cache/747b06f0f24927642dfeed5dfd630e76765d07dd400e9d2638cbda8c3101d8ec.json",
+    "?? .planning/research/.cache/8a3bfd0488f8b69dc902bfb717e928a1e5a44c43de37272159199ece36784122.json",
+    "?? .planning/research/.cache/a801f372aff8ecd6fe2a54119acaf243190e23f462221857a69bdf196948525f.json",
+    "?? .planning/research/.cache/ab7ee3bed3cb4fd83b7332ed802da6325ba8a1e30e6219652e55b384f830d8d2.json",
+    "?? .planning/research/.cache/d1d86787366559bdc39307ecc8728f0cb0d35962c03cd885f6de026eb11ce7d0.json",
+    "?? .planning/research/.cache/e54924a36413eea509d976e2e2bedb2c71188a7e5d233e627803c93c5ecf8290.json",
+    "?? .planning/ui-reviews/"
+  ],
+  "next_action": "Ask the user: are you ready to publish this project to its public GitHub page? If yes: resume /gsd-execute-phase 04 (or dispatch plan 04-02 directly) to create .github/workflows/release.yml, push main, hand-start a CI build, and verify both macOS and Windows downloads — then proceed to 04-04 to cut the actual v0.1.0 release. If not yet: nothing else to do right now; the app already works standalone on this Mac via the existing packaging/app.spec build from 04-01.",
+  "context_notes": "Phase 5 (MVR Import & Fixture Substitution) was fully executed and verified complete in this session — 5/5 plans, 462/462 tests passing, security audit clean (28/28 threats closed), Nyquist validation clean, UI review 22/24, final goal-backward verification passed. One non-blocking code-review finding worth revisiting eventually: core/mvr_repository.py's iter_fixtures() has no explicit recursion depth cap (relies only on CPython's own RecursionError as a backstop) — stress-tested up to 150,000 nested levels with no crash, but still a defense-in-depth gap. Tracked as 'open' in .planning/phases/05-mvr-import-fixture-substitution/05-REVIEW-DISPOSITION.md (CR-01). Two minor UI-polish items also noted in 05-UI-REVIEW.md (ambiguous 'Result' column header; a tooltip showing a mangled internal filename instead of the readable one) — neither urgent. The milestone's only remaining work is Phase 4, and it is blocked purely on a human decision (publish or hold), not on any technical work."
+}
